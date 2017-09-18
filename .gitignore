@@ -35,3 +35,4 @@ vignettes/*.pdf
 
 # Output folders created by vignettes
 vignettes/Week1_Importing_Genetic_Data/data
+vignettes/Week2_Spatial_Data/data
