@@ -1,0 +1,220 @@
+---
+title: "Week 3: Gene Flow"
+author: Helene Wagner
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Week 3: Gene Flow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+## 1. Overview of Worked Example
+
+### a) Goals 
+
+This worked example shows:
+
+- How to check markers and populations (HWE, linkage, null alleles). 
+- How to calculate genetic diversity and plot it in space.
+- How to analyze genetic structure with F statistics and AMOVA.
+- How to calculate genetic distances among individuals and populations.
+
+
+### b) Data set
+
+Microsatellite data for 181 individuals of Colombia spotted frogs (Rana luteiventris) from 12 populations. The data are a subsample of the full data set analyzed in Funk et al. (2005) and Murphy et al. (2010). Please see the separate introduction to the data set. 
+
+- **ralu.loci**: Data frame with populations and genetic data (181 rows x 9 columns). Included in package 'LandGenCourse'. To load it, type: data(ralu.loci)
+
+### c) Required R libraries
+
+All required packages should have been installed already when you installed 'LandGenCourse'.
+
+Note: the function 'library' will always load the package, even if it is already loaded, whereas 'require' will only load it if it is not yet loaded. Either will work.
+
+```{r message=FALSE, warning=TRUE}
+require(adegenet)
+require(gstudio)
+require(LandGenCourse)
+require(tibble)
+require(pegas)       # ADD TO PACKAGE?
+require(sp)
+require(hierfstat)   # ADD TO PACKAGE
+require(PopGenReport)
+require(GeNetIt)
+require(dplyr)
+```
+
+### d) List of tasks
+
+- Add sampling locations and hierarchical structure to genind object
+- Basic checking of markers and populations
+- Calculate genetic diversity and plot it in space
+- Assess genetic structure with F statistics and AMOVA
+- Calculate genetic distances
+
+## 2. Add sampling locations and hierarchical structure to genind object
+
+### a) Re-create genind object with the frog genetic data
+
+Adapted from Week 1 tutorial: 
+
+```{r}
+data(ralu.loci)
+Frogs <- data.frame(FrogID = paste(substr(ralu.loci$Pop, 1, 3), 
+                                   row.names(ralu.loci), sep="."), ralu.loci)
+Frogs.genind <- df2genind(X=Frogs[,c(4:11)], sep=":", ncode=NULL, 
+                          ind.names= Frogs$FrogID, loc.names=NULL, 
+                          pop=Frogs$Pop, NA.char="NA", ploidy=2, 
+                          type="codom", strata=NULL, hierarchy=NULL)
+Frogs.genind
+```
+
+### b) Re-create table with site variables
+
+The dataset 'ralu.loci' is available in the package 'LandGenCourse'. Here we first export it as a comma separated file (.csv), as this is the recommended format for importing your own data (e.g. from Excel). We use a relative path to save the file into a subfolder 'data' within your project folder.
+
+#### Import spatial data and add it to the 'genind' object in the slots provided
+* other$latlong: coordinates in decimal lat/lon format
+* other$xy: coordinates in UTM format
+* other: may add attribute data, here: basin
+
+```{r}
+data(ralu.site)
+
+coords.longlat <- spTransform(ralu.site, tmaptools::get_proj4("longlat"))@coords
+dimnames(coords.longlat)[[2]] <- c("Longitude", "Latitude")
+
+tmp <- left_join(x=ralu.loci[,1:2], 
+                 y=cbind(coords.longlat, ralu.site@coords, ralu.site@data), 
+                 by = c("SiteName" = "SiteName"))
+
+#str(tmp)
+Frogs.genind@other$latlong <- tmp[,3:4]
+Frogs.genind@other$xy <- tmp[,5:6]
+Frogs.genind@other$site <- tmp[,-c(3:6)]
+
+# Define strata
+strata(Frogs.genind) <- with(Frogs.genind@other$site, data.frame(Drainage, Basin, SiteName, Pop))
+
+# Define hierarchy
+hier(Frogs.genind) <- ~Drainage/Basin/Pop
+
+Frogs.genind
+
+Frogs.genpop <- genind2genpop(Frogs.genind)
+
+# From Week 3:
+#Sites.sp
+```
+### 3. Create a Google map of sampling locations (gstudio, ggmap)
+See gstudio vignette, or video tutorial by Rodney Dyer: 
+http://dyerlab.bio.vcu.edu/2016/01/17/a-quick-ggmap-tutorial/
+
+```{r}
+require(ggmap)
+  coords <- data.frame(Frogs.genind@strata,
+                       Longitude=Frogs.genind@other$latlong$Longitude,
+                       Latitude=Frogs.genind@other$latlong$Latitude)
+  map <- population_map(coords, map.source="google", zoom=12) 
+  ggmap(map) + 
+    geom_point(aes(x = Longitude, y = Latitude, color = Basin), 
+               size = 10, data=coords) + 
+    annotate("text", x=coords$Longitude, y=coords$Latitude, label = coords$Pop, 
+             size=3, col="black")  
+                        # In RMarkdown language, need to close plot window manually. 
+#  dev.off()             # Don't run this command if you are copy-pasting into R.
+```  
+
+### 4. Basic summary statistics (adegenet)
+* Note: the formatting of this summary has changed from the printed output because the package 'adegenet' has been modified.
+* Writing the summary into an object 'Sum' will allow us later on to access its attributes!
+```{r}
+  # Summarize data
+  Sum <- summary(Frogs.genind)
+  Sum
+```  
+
+
+
+## 5. Genetic distance
+
+
+
+```{r}
+hw.test(Frogs.genind)
+
+# Chi-squared test: p-value
+HWE.test <- data.frame(sapply(seppop(Frogs.genind), function(ls) hw.test(ls)[,3]))
+#HWE.test$Total <- hw.test(Frogs.genind)[,3]
+HWE.test.chisq <- t(data.matrix(HWE.test))
+round(HWE.test.chisq,4)
+# Proportion of loci out of HW:
+apply(HWE.test.chisq<0.05, 1, mean)
+# Proportion of populations out of HW:
+apply(HWE.test.chisq<0.05, 2, mean)
+
+# Monte Carlo: p-value
+HWE.test <- data.frame(sapply(seppop(Frogs.genind), function(ls) hw.test(ls)[,4]))
+#HWE.test$Total <- hw.test(Frogs.genind)[,4]
+HWE.test.MC <- t(data.matrix(HWE.test))
+round(HWE.test.MC,4)
+# Proportion of loci out of HW:
+apply(HWE.test.MC<0.05, 1, mean)
+# Proportion of populations out of HW:
+apply(HWE.test.MC<0.05, 2, mean)
+
+alpha=0.05
+Prop.pops.out.of.HWE <- data.frame(Chisq=apply(HWE.test.chisq<alpha, 1, mean), 
+           MC=apply(HWE.test.MC<alpha, 1, mean))
+Prop.loci.out.of.HWE <- data.frame(Chisq=apply(HWE.test.chisq<alpha, 2, mean), 
+           MC=apply(HWE.test.MC<alpha, 2, mean))
+Prop.pops.out.of.HWE
+Prop.loci.out.of.HWE
+```
+
+```{r}
+Hs(Frogs.genpop)
+
+# From PopGenReport
+
+# Null alleles: depends on method! See help file.
+Null.alleles <- null.all(Frogs.genind)
+Null.alleles$homozygotes$probability.obs
+round(Null.alleles$null.allele.freq$summary1,2)  # Chakraborty et al. (1994)
+round(Null.alleles$null.allele.freq$summary2,2)  # Brookfield (1996) 
+
+# rarefied allelic richness
+Richness <- allel.rich(Frogs.genind)
+Richness
+barplot(Richness$mean.richness)
+plot(colMeans(Richness$pop.sizes), Richness$mean.richness)
+abline(lm(Richness$mean.richness ~ colMeans(Richness$pop.sizes)), col="red")
+
+# Individual-level genetic distances (computer intensive)
+GD.ind.kosman <- gd.kosman(Frogs.genind)
+GD.ind.smouse <- gd.smouse(Frogs.genind)  # GenAlEx
+GD.ind.propShared <- propShared(Frogs.genind)
+
+# Population-level genetic distances (computer intensive)
+GD.pop.propShared <- pairwise.propShared(Frogs.genind)
+GD.pop.Nei <- dist.genpop(Frogs.genpop, method=1)   
+GD.pop.Edwards <- dist.genpop(Frogs.genpop, method=2)
+GD.pop.Reynolds <- dist.genpop(Frogs.genpop, method=3)  # Coancestry coef
+GD.pop.Rogers <- dist.genpop(Frogs.genpop, method=4)  
+GD.pop.Provesti <- dist.genpop(Frogs.genpop, method=5)
+
+
+
+### From pegas
+
+# Fst
+Frogs.pegas <- genind2loci(Frogs.genind)
+pegas::Fst(Frogs.pegas)
+
+#LD: DOES NOT WORK (MISSING VALUES?)
+#pegas::LD2(Frogs.pegas, locus=c(1,2), details=TRUE)
+
+```
+
+
