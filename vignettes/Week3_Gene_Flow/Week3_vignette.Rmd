@@ -12,13 +12,13 @@ vignette: >
 
 ### a) Goals 
 
-This worked example shows:
+This worked example shows how to:
 
-- How to check markers and populations (HWE, linkage, null alleles). 
-- How to calculate genetic diversity and plot it in space.
-- How to analyze genetic structure with F statistics and AMOVA.
-- How to calculate genetic distances among individuals and populations.
-
+- Check markers and populations (HWE, linkage, null alleles). 
+- Assess genetic diversity and inbreeding.
+- Plot results onto Google Maps.
+- Analyze genetic structure with F statistics and AMOVA.
+- Calculate genetic distances among individuals and populations.
 
 ### b) Data set
 
@@ -43,19 +43,13 @@ require(hierfstat)   # ADD TO PACKAGE
 require(PopGenReport)
 require(GeNetIt)
 require(dplyr)
+require(poppr)       # ADD TO PACKAGE
+require(mmod)        # ADD TO PACKAGE
 ```
 
-### d) List of tasks
+## 2. Basic checking of markers and populations
 
-- Add sampling locations and hierarchical structure to genind object
-- Basic checking of markers and populations
-- Calculate genetic diversity and plot it in space
-- Assess genetic structure with F statistics and AMOVA
-- Calculate genetic distances
-
-## 2. Add sampling locations and hierarchical structure to genind object
-
-### a) Re-create genind object with the frog genetic data
+### a) Re-create genind object 
 
 Adapted from Week 1 tutorial: 
 
@@ -70,76 +64,14 @@ Frogs.genind <- df2genind(X=Frogs[,c(4:11)], sep=":", ncode=NULL,
 Frogs.genind
 ```
 
-### b) Re-create table with site variables
-
-The dataset 'ralu.loci' is available in the package 'LandGenCourse'. Here we first export it as a comma separated file (.csv), as this is the recommended format for importing your own data (e.g. from Excel). We use a relative path to save the file into a subfolder 'data' within your project folder.
-
-#### Import spatial data and add it to the 'genind' object in the slots provided
-* other$latlong: coordinates in decimal lat/lon format
-* other$xy: coordinates in UTM format
-* other: may add attribute data, here: basin
-
-```{r}
-data(ralu.site)
-
-coords.longlat <- spTransform(ralu.site, tmaptools::get_proj4("longlat"))@coords
-dimnames(coords.longlat)[[2]] <- c("Longitude", "Latitude")
-
-tmp <- left_join(x=ralu.loci[,1:2], 
-                 y=cbind(coords.longlat, ralu.site@coords, ralu.site@data), 
-                 by = c("SiteName" = "SiteName"))
-
-#str(tmp)
-Frogs.genind@other$latlong <- tmp[,3:4]
-Frogs.genind@other$xy <- tmp[,5:6]
-Frogs.genind@other$site <- tmp[,-c(3:6)]
-
-# Define strata
-strata(Frogs.genind) <- with(Frogs.genind@other$site, data.frame(Drainage, Basin, SiteName, Pop))
-
-# Define hierarchy
-hier(Frogs.genind) <- ~Drainage/Basin/Pop
-
-Frogs.genind
-
-Frogs.genpop <- genind2genpop(Frogs.genind)
-
-# From Week 3:
-#Sites.sp
-```
-### 3. Create a Google map of sampling locations (gstudio, ggmap)
-See gstudio vignette, or video tutorial by Rodney Dyer: 
-http://dyerlab.bio.vcu.edu/2016/01/17/a-quick-ggmap-tutorial/
-
-```{r}
-require(ggmap)
-  coords <- data.frame(Frogs.genind@strata,
-                       Longitude=Frogs.genind@other$latlong$Longitude,
-                       Latitude=Frogs.genind@other$latlong$Latitude)
-  map <- population_map(coords, map.source="google", zoom=12) 
-  ggmap(map) + 
-    geom_point(aes(x = Longitude, y = Latitude, color = Basin), 
-               size = 10, data=coords) + 
-    annotate("text", x=coords$Longitude, y=coords$Latitude, label = coords$Pop, 
-             size=3, col="black")  
-                        # In RMarkdown language, need to close plot window manually. 
-#  dev.off()             # Don't run this command if you are copy-pasting into R.
-```  
-
-### 4. Basic summary statistics (adegenet)
-* Note: the formatting of this summary has changed from the printed output because the package 'adegenet' has been modified.
-* Writing the summary into an object 'Sum' will allow us later on to access its attributes!
-```{r}
-  # Summarize data
-  Sum <- summary(Frogs.genind)
-  Sum
-```  
+### b) Check that markers are polymorphic
+Sum <- summary(Frogs.genind)
+Sum$loc.n.all
+Sum
+HWE.test <- data.frame(sapply(seppop(Frogs.genind), function(ls) hw.test(ls)[,3]))
 
 
-
-## 5. Genetic distance
-
-
+### c) Check for deviations from Hardy-Wineberg Equilibrium (HWE)
 
 ```{r}
 hw.test(Frogs.genind)
@@ -173,29 +105,179 @@ Prop.pops.out.of.HWE
 Prop.loci.out.of.HWE
 ```
 
+### d) Check for linkage disequilibrium
+
 ```{r}
-Hs(Frogs.genpop)
+#LD: DOES NOT WORK (MISSING VALUES?)
+#pegas::LD2(Frogs.pegas, locus=c(1,2), details=TRUE)
 
-# From PopGenReport
+```
 
+### e) Check for null alleles (PopGenReport)
+
+```{r}
 # Null alleles: depends on method! See help file.
 Null.alleles <- null.all(Frogs.genind)
 Null.alleles$homozygotes$probability.obs
 round(Null.alleles$null.allele.freq$summary1,2)  # Chakraborty et al. (1994)
 round(Null.alleles$null.allele.freq$summary2,2)  # Brookfield (1996) 
+```
 
+## 3. Add sampling locations and hierarchical structure to genind object
+
+### a) Add spatial coordinates and site variables
+
+The dataset 'ralu.loci' is available in the package 'LandGenCourse'. Here we first export it as a comma separated file (.csv), as this is the recommended format for importing your own data (e.g. from Excel). We use a relative path to save the file into a subfolder 'data' within your project folder.
+
+#### Import spatial data and add it to the 'genind' object in the slots provided
+* other$latlong: coordinates in decimal lat/lon format
+* other$xy: coordinates in UTM format
+* other: may add attribute data, here: basin
+
+```{r}
+data(ralu.site)
+
+coords.longlat <- spTransform(ralu.site, tmaptools::get_proj4("longlat"))@coords
+dimnames(coords.longlat)[[2]] <- c("Longitude", "Latitude")
+
+tmp <- left_join(x=ralu.loci[,1:2], 
+                 y=cbind(coords.longlat, ralu.site@coords, ralu.site@data), 
+                 by = c("SiteName" = "SiteName"))
+
+#str(tmp)
+Frogs.genind@other$latlong <- tmp[,3:4]
+Frogs.genind@other$xy <- tmp[,5:6]
+Frogs.genind@other$site <- tmp[,-c(3:6)]
+
+```
+
+### b) Define sampling hierarchy
+
+```{r}
+# Define strata
+strata(Frogs.genind) <- with(Frogs.genind@other$site, data.frame(Drainage, Basin, SiteName, Pop))
+#Frogs.genind@strata$Individual <- factor(row.names(Frogs.genind@tab))
+
+# Define hierarchy
+hier(Frogs.genind) <- ~Drainage/Basin/Pop
+
+Frogs.genind
+```
+
+### c) Aggregate genetic data at population level
+
+```{r}
+
+Frogs.genpop <- genind2genpop(Frogs.genind)
+
+# Add: export allele frequencies?
+Freq <- makefreq(Frogs.genpop)
+round(Freq[1:6,1:10], 2)
+#apply(Freq, 1, sum)    # Just checking
+```
+
+### 4. Assess genetic diversity and inbreeding (adegenet)
+
+### a) Rarefied allelic richness
+
+```{r}
 # rarefied allelic richness
 Richness <- allel.rich(Frogs.genind)
 Richness
-barplot(Richness$mean.richness)
-plot(colMeans(Richness$pop.sizes), Richness$mean.richness)
+Richness$alleles.sampled        # rarification level
+```  
+
+```{r}
+barplot(Richness$mean.richness, las=3, ylab="Rarefied allelic richness (Ar)")
+plot(colMeans(Richness$pop.sizes), Richness$mean.richness,
+     xlab="Valid sample size (mean across loci)", 
+     ylab="Rarefied allelic richness (Ar)")
 abline(lm(Richness$mean.richness ~ colMeans(Richness$pop.sizes)), col="red")
 
+```
+
+### b) Observed and expected heterozygosity
+
+* Writing the summary into an object 'Sum' will allow us later on to access its attributes!
+```{r}
+  # Summarize data
+  Sum <- summary(Frogs.genind)
+  Sum
+  
+  # Observed and expected heterozygosity by locus
+  Sum$Hobs
+  Sum$Hexp
+  # 1 - Sum$Hobs/Sum$Hexp
+  
+  # Observed and expected heterozygosity by locus and population
+  Hobs <- t(sapply(seppop(Frogs.genind), function(ls) summary(ls)$Hobs))
+  Hexp <- t(sapply(seppop(Frogs.genind), function(ls) summary(ls)$Hexp))
+  round(Hobs, 2)
+  round(Hexp, 2)
+  # 1 - Hobs/Hexp
+  
+  # Observed and expected heterozygosity by population
+  Hobs.pop <- apply(Hobs, 1, mean)
+  Hexp.pop <- apply(Hexp, 1, mean) 
+  round(Hobs.pop, 2)
+  round(Hexp.pop, 2)
+  #Hs(Frogs.genpop)           # same
+  # 1 - Hobs.pop/Hexp.pop
+```  
+
+### c) Inbreeding coefficients
+
+```{r} 
+temp <- lapply(seppop(Frogs.genind), function(ls) inbreeding(ls, N=100))
+Fbar <- lapply(temp, function (ls) sapply(ls, mean))
+
+boxplot(Fbar, las=3, ylim=c(0,1), xlab="", ylab="Inbreeding coefficient (Fbar)")
+Mean.inbreeding.per.pop <- sapply(Fbar, mean)
+```  
+
+
+### 5. Plot results in space
+
+### a) Create a Google map of sampling locations (gstudio, ggmap)
+
+See gstudio vignette, or video tutorial by Rodney Dyer: 
+http://dyerlab.bio.vcu.edu/2016/01/17/a-quick-ggmap-tutorial/
+
+```{r}
+require(ggmap)
+  coords <- data.frame(Frogs.genind@strata,
+                       Longitude=Frogs.genind@other$latlong$Longitude,
+                       Latitude=Frogs.genind@other$latlong$Latitude)
+  map <- population_map(coords, map.source="google", zoom=12) 
+  ggmap(map) + 
+    geom_point(aes(x = Longitude, y = Latitude, color = Basin), 
+               size = 10, data=coords) + 
+    annotate("text", x=coords$Longitude, y=coords$Latitude, label = coords$Pop, 
+             size=3, col="black")  
+                        # In RMarkdown language, need to close plot window manually. 
+dev.off()             # Don't run this command if you are copy-pasting into R.
+```  
+
+### b) Plot maps of genetic diversity and inbreeding
+
+
+
+
+
+## 5. Calculate individual- and population-level genetic distances
+
+### a) Genetic distance among individuals
+
+```{r}
 # Individual-level genetic distances (computer intensive)
 GD.ind.kosman <- gd.kosman(Frogs.genind)
-GD.ind.smouse <- gd.smouse(Frogs.genind)  # GenAlEx
-GD.ind.propShared <- propShared(Frogs.genind)
+GD.ind.smouse <- gd.smouse(Frogs.genind, verbose=FALSE)  # GenAlEx
+GD.ind.propShared <- propShared(Frogs.genind)            # 1 - GD.ind.kosman
+```
 
+### b) Genetic distance among local populations (adegenet)
+
+```{r}
 # Population-level genetic distances (computer intensive)
 GD.pop.propShared <- pairwise.propShared(Frogs.genind)
 GD.pop.Nei <- dist.genpop(Frogs.genpop, method=1)   
@@ -204,17 +286,109 @@ GD.pop.Reynolds <- dist.genpop(Frogs.genpop, method=3)  # Coancestry coef
 GD.pop.Rogers <- dist.genpop(Frogs.genpop, method=4)  
 GD.pop.Provesti <- dist.genpop(Frogs.genpop, method=5)
 
+```
 
+### c) Additional denetic distances (gstudio)
 
-### From pegas
+```{r}
+# Import data for gstudio (see Week 1)
+if(!dir.exists("./data")) dir.create("./data")
+write.csv(ralu.loci, "./data/ralu.loci.csv", quote=FALSE, row.names=FALSE)
+Frogs.gstudio <- read_population("./data/ralu.loci.csv", type = "separated", locus.columns = 3:10)
+# Add strata information
+Frogs.gstudio <- data.frame(Frogs.genind@strata, Frogs.gstudio[,-c(1:2)])
+str(Frogs.gstudio)
 
-# Fst
-Frogs.pegas <- genind2loci(Frogs.genind)
-pegas::Fst(Frogs.pegas)
+# Individual-level genetic distances
+GD.ind.amova <- dist_amova(Frogs.gstudio)
 
-#LD: DOES NOT WORK (MISSING VALUES?)
-#pegas::LD2(Frogs.pegas, locus=c(1,2), details=TRUE)
-
+# Population-level genetic distances
+GD.pop.Bray <- dist_bray(Frogs.gstudio, stratum="Pop")
+GD.pop.Cavalli <- dist_cavalli(Frogs.gstudio, stratum="Pop")  # same as GD.pop.Edwards?
+GD.pop.cGD <- dist_cgd(Frogs.gstudio, stratum="Pop")
+GD.pop.Eucl <- dist_euclidean(Frogs.gstudio, stratum="Pop")
+GD.pop.Jaccard <- dist_jaccard(Frogs.gstudio, stratum="Pop")
+#GD.pop.Nei <- dist_nei(Frogs.gstudio, stratum="Pop")  # Same as above (?)
+#GD.pop.ss <- dist_ss(Frogs.gstudio, stratum="Pop")  # Does not work
 ```
 
 
+## 6. Analyze genetic structure with F statistics and AMOVA
+
+### a) F statistics and other measures of genetic differentiation
+
+```{r}
+
+# Overall F statistics (hierfstat)
+hierfstat::fstat(Frogs.genind, pop = NULL, fstonly = FALSE)
+
+# F statistics by locus (pegas)
+Frogs.pegas <- genind2loci(Frogs.genind)
+pegas::Fst(Frogs.pegas)
+
+# Alternative measures of differentiation (mmod)
+mmod::diff_stats(Frogs.genind)
+
+```
+
+### b) AMOVA
+
+```{r}
+### From pegas
+
+#plot(as.vector(GD.ind.kosman$geneticdist), as.vector(GD.ind.propShared))
+#cor(as.vector(GD.ind.kosman$geneticdist), as.vector(GD.ind.propShared),
+#     use="pairwise.complete.obs")
+
+#D <- (1-GD.ind.propShared)
+#pegas::amova(formula= D ~ Drainage/Basin/Pop,
+#             data=Frogs.genind@strata)
+
+# Implementation in 'pegas':
+amova.result.pegas <- poppr.amova(Frogs.genind, hier = ~ Drainage/Basin/Pop, 
+            clonecorrect = FALSE, within = TRUE,
+  dist = NULL, squared = FALSE, correction = "quasieuclid", sep = "_",
+  filter = FALSE, threshold = 0, algorithm = "farthest_neighbor",
+  missing = "loci", cutoff = 0.5, quiet = FALSE, method = c(
+  "pegas"), nperm = 0)
+
+amova.result.pegas
+amova.result.pegas$varcomp/sum(amova.result.pegas$varcomp)
+
+
+# Implementation in 'ade4':
+amova.result.ade4 <- poppr.amova(Frogs.genind, hier = ~ Drainage/Basin/Pop, 
+            clonecorrect = FALSE, within = TRUE,
+  dist = NULL, squared = FALSE, correction = "quasieuclid", sep = "_",
+  filter = FALSE, threshold = 0, algorithm = "farthest_neighbor",
+  missing = "loci", cutoff = 0.5, quiet = FALSE, method = c(
+  "ade4"), nperm = 0)
+
+amova.result.ade4
+
+# Significance test (only for ade4 implementation)
+amova.test <- randtest(amova.result.ade4, nrepet=199) # Test for significance
+plot(amova.test)
+amova.test
+
+
+# With amova-distance from gstudio:
+#amova.result.gstudio <- pegas::amova(formula= GD.ind.amova ~ Drainage/Basin/Pop,
+#             data=Frogs.gstudio)
+#amova.result.gstudio$varcomp$sigma2/sum(amova.result.gstudio$varcomp$sigma2)
+
+```
+
+### c) Pair-wise Fst (hierfstat)
+
+```{r}
+Pairwise.fst <- hierfstat::pairwise.fst(Frogs.genind, pop = NULL, 
+                                        res.type = c("dist"))
+
+```
+
+### d) Contribution of each population to Fst
+```{r}
+
+
+```
