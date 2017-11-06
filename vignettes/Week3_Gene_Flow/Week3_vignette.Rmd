@@ -2,12 +2,18 @@
 title: "Week 3: Genetic Diversity"
 author: "Helene Wagner"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+show_toc: true
+output:
+  knitr:::html_vignette:
+    toc: yes
+    fig_width: 4 
+    fig_height: 3.5
 vignette: >
   %\VignetteIndexEntry{Week 3: Genetic Diversity}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
+
 ## 1. Overview of Worked Example
 
 ### a) Goals 
@@ -20,7 +26,9 @@ This worked example shows how to:
 - Calculate genetic distances among individuals and populations.
 - Analyze genetic structure with F statistics (and alternatives) and AMOVA.
 
-### b) Data set (same as used in Weeks 1 & 2)
+### b) Data set 
+
+This is the same data set as used in Weeks 1 & 2.
 
 Microsatellite data for 181 individuals of Colombia spotted frogs (Rana luteiventris) from 12 populations. Site-level spatial coordinates and attributes. The data are a subsample of the full data set analyzed in Funk et al. (2005) and Murphy et al. (2010). Please see the separate introduction to the data set. 
 
@@ -42,7 +50,7 @@ require(PopGenReport)
 require(GeNetIt)
 require(dplyr)
 require(poppr)       
-require(mmod)        
+require(mmod)
 ```
 
 ## 2. Basic checking of markers and populations
@@ -93,7 +101,9 @@ Here are p-values for two alternative tests of deviation from HWE for each locus
 round(pegas::hw.test(Frogs.genind, B = 1000),3)
 ```
 
-Both tests suggest that most loci are out of HWE globally (across all 181 individuals). Next, we check for HWE of each locus in each population:
+Both tests suggest that most loci are out of HWE globally (across all 181 individuals). Next, we check for HWE of each locus in each population.
+
+Note on code: The curly brackets '{ }' below are used to keep the output from multiple lines together in the html file.
 
 ```{r}
 # Chi-squared test: p-value
@@ -135,7 +145,7 @@ The results suggest that:
 - No locus is consistently out of HWE across populations (loci probably not affected by selection).
 - No population is consistently out of HWE across loci (probably no recent major bottlenecks/ founder effects).
 
-### d) Check for linkage disequilibrium
+### d) Check for linkage disequilibrium (LD)
 See also: https://grunwaldlab.github.io/Population_Genetics_in_R/Linkage_disequilibrium.html
 
 For microsatellite markers, we typically don't know where on the genome they are located. The closer together two markers are on a chromosome, the more likely they are inherited together, which means that they don't really provide independent information. Testing for linkage disequilibrium assesses this, for each pair of loci, by checking whether alleles of two loci are statistically associated.
@@ -149,11 +159,6 @@ Overall, there is statistically significant association among the markers (p-val
 ```{r, fig.show='hold'}
 poppr::ia(Frogs.genind, sample=199)
 LD.pair <- poppr::pair.ia(Frogs.genind)
-```
-
-
-```{r}
-
 ```
 
 The strongest correlation is around 0.2, for markers E and H. 
@@ -284,7 +289,7 @@ The allele frequencies of all alleles from the same locus (e.g., A.1, A.2 and A.
 apply(Freq, MARGIN = 1, FUN = sum)    # Just checking
 ```
 
-### 4. Assess genetic diversity and inbreeding (adegenet)
+## 4. Assess genetic diversity and inbreeding (adegenet)
 
 These measures are typically quantified per population. 
 
@@ -306,7 +311,7 @@ Note: 'pop.sizes' here refers to the number of (non-missing) alleles, not indivi
 Let's plot the results. The barchart shows that there is considerable variation in genetic diversity among ponds. A scatterplot against sample size (here: for each population, the average number of valid alleles across loci) suggests that the variation is not related to sample size. The regression line (red) is almost horizontal.
 
 ```{r, fig.show='hold'}
-par(mar=c(5.5, 4,1,0.5))
+par(mar=c(5.5, 4.5,1,1))
 barplot(Richness$mean.richness, las=3, ylab="Rarefied allelic richness (Ar)")
 plot(colMeans(Richness$pop.sizes), Richness$mean.richness,
      xlab="Valid sample size", 
@@ -327,11 +332,11 @@ Note: Writing the 'genind' summary into an object 'Sum' allows accessing its att
   
 Expected heterozygosity (Hexp) is a measure of genetic diversity among individuals, and observed heterozygosity (Hobs) within individuals. Here are the global values (pooled across all populations):
 
-```{r, fig.show='hold'}
-  par(mar=c(3, 4,1,0.5))
+```{r, fig.show='hold', fig.height=3, fig.width=4}
+  par(mar=c(3, 4.5,1,1))
   # Observed and expected heterozygosity by locus
-  barplot(Sum$Hexp, ylim=c(0,1), ylab="Expected heterozygosity", las=3)
-  barplot(Sum$Hobs, ylim=c(0,1), ylab="Observed heterozygosity", las=3)
+  barplot(Sum$Hexp, ylim=c(0,1), ylab="Expected heterozygosity")
+  barplot(Sum$Hobs, ylim=c(0,1), ylab="Observed heterozygosity")
 ``` 
 
 By locus and population:
@@ -351,7 +356,7 @@ Locus F shows variation only in two populations (i.e., Hexp = 0 in 10 population
 Let's plot the average across all loci for each population:
 
 ```{r, fig.show='hold'} 
-  par(mar=c(5.5, 4,1,0.5))
+  par(mar=c(5.5, 4.5, 1, 1))
   # Observed and expected heterozygosity by population
   Hobs.pop <- apply(Hobs, 1, mean)
   Hexp.pop <- apply(Hexp, 1, mean) 
@@ -381,7 +386,7 @@ Fbar <- lapply(temp, function (ls) sapply(ls, mean))
 The two values can be quite different:
 
 ```{r, fig.show='hold'}
-par(mar=c(5.5, 4,1,0.5))
+par(mar=c(5.5, 4.5, 1, 1))
 boxplot(Fest, las=3, ylim=c(0,1), xlab="", ylab="Inbreeding coefficient (Fest)")
 boxplot(Fbar, las=3, ylim=c(0,1), xlab="", ylab="Inbreeding coefficient (Fbar)")
 Mean.inbreeding.per.pop <- sapply(Fbar, mean)
@@ -397,10 +402,9 @@ This results in a distance matrix of size n x n (here, 181 x 181 for individual-
 ### a) Genetic distance among individuals (PopGenReport, adegenet)
 
 ```{r}
-# Individual-level genetic distances (computer intensive)
-GD.ind.kosman <- PopGenReport::gd.kosman(Frogs.genind)
+# Individual-level genetic distances
 GD.ind.smouse <- PopGenReport::gd.smouse(Frogs.genind, verbose=FALSE)  # GenAlEx
-GD.ind.propShared <- adegenet::propShared(Frogs.genind)       # 1 - GD.ind.kosman
+GD.ind.propShared <- adegenet::propShared(Frogs.genind)     
 ```
 
 ### b) Genetic distance among local populations (PopGenReport, adegenet, mmod)
@@ -430,38 +434,16 @@ Pairwise.fst <- hierfstat::pairwise.fst(Frogs.genind, pop = NULL,
                                         res.type = c("dist"))
 ```
 
-### d) Additional genetic distances (gstudio)
-
-```{r}
-# Import data for analysis with gstudio (see Week 1)
-if(!dir.exists("./data")) dir.create("./data")
-write.csv(ralu.loci, "./data/ralu.loci.csv", quote=FALSE, row.names=FALSE)
-Frogs.gstudio <- read_population("./data/ralu.loci.csv", type = "separated", locus.columns = 3:10)
-
-# Individual-level genetic distances
-GD.ind.amova <- gstudio::dist_amova(Frogs.gstudio)
-{
-# Population-level genetic distances
-GD.pop.Bray <- gstudio::dist_bray(Frogs.gstudio, stratum="Pop")
-GD.pop.Cavalli <- gstudio::dist_cavalli(Frogs.gstudio, stratum="Pop")  # same as GD.pop.Edwards?
-GD.pop.cGD <- gstudio::dist_cgd(Frogs.gstudio, stratum="Pop")
-GD.pop.Eucl <- gstudio::dist_euclidean(Frogs.gstudio, stratum="Pop")
-GD.pop.Jaccard <- gstudio::dist_jaccard(Frogs.gstudio, stratum="Pop")
-#GD.pop.Nei <- gstudio::dist_nei(Frogs.gstudio, stratum="Pop")  # Same as above (?)
-#GD.pop.ss <- gstudio::dist_ss(Frogs.gstudio, stratum="Pop")  # Does not work
-}
-```
-
-### e) Export distance matrices
+### d) Export distance matrices
 
 We'll need the genetic distance matrices again in later labs, so let's export them. Adding the package name to each matrix name helps keeping track of methods used.
 
-Technically speaking, the two proportion of shared alleles matrices contain similarity values, not distance values. They are proportions between 0 - 1, and we can convert them to distances by subtracting them from 1.  
+Technically speaking, the two proportion of shared alleles matrices contain similarity values, not distance values. They are proportions between 0 - 1, and we can convert them to distances by subtracting them from 1. 
+
+Note: additional distance measures are available in the package 'gstudio'. Specifically, we will use conditional genetic distance later in the course.
 
 ```{r}
-GD.ind <- list(amova.gstudio = GD.ind.amova,
-               kosman.PopGenReport = GD.ind.kosman,
-               smouse.PopGenReport = GD.ind.smouse,
+GD.ind <- list(smouse.PopGenReport = GD.ind.smouse,
                propShared.adegent = 1 - GD.ind.propShared)
 
 GD.pop <- list(pairwiseFst.hierfstat = Pairwise.fst,
@@ -471,15 +453,13 @@ GD.pop <- list(pairwiseFst.hierfstat = Pairwise.fst,
                Reynolds.adegent = GD.pop.Reynolds,
                Rogers.adegenet = GD.pop.Rogers,
                Provesti.adegent = GD.pop.Provesti,
-               Bray.gstudio = GD.pop.Bray,
-               Cavalli.gstudio = GD.pop.Cavalli,
-               cGD.gstudio = GD.pop.cGD,
-               Eucl.gstudio = GD.pop.Eucl,
-               Jaccard.gstudio = GD.pop.Jaccard,
                Joost.mmod = GD.pop.Joost,
                Hedrick.mmod = GD.pop.Hedrick,
                Nei.mmod = GD.pop.NeiGst)
 ```
+
+round(cor(sapply(GD.ind, function(ls) as.vector(ls))),2)
+round(cor(sapply(GD.pop, function(ls) as.vector(ls))),2)
 
 Use 'save' to save an R object to your file system, and 'load' to read it in again. Note: the default setting is that 'save' will overwrite existing files with the same name.
 
@@ -491,25 +471,71 @@ save(GD.pop, file = "./data/GD.pop.RData")
 load("./data/GD.pop.RData")
 ```
 
+### e) Test for isolation by distance (adegenet)
+
+Let's do a quick-and-dirty check for isolation by distance (IBD). For this, we need to extract the UTM coordinates per population. Here we use functions from the package 'dplyr' to group coordinates by population, then take their mean (they should be identical anyways).
+
+```{r}
+coords.pop <- Frogs.genind@other$xy %>%
+  group_by(Frogs.genind@other$site$Pop) %>%
+  summarize(x = mean(coords.x1, na.rm = TRUE),
+            y = mean(coords.x2, na.rm = TRUE))
+```
+
+Now we can calculate geographic distance with the 'dist' function.
+
+```{r}
+Dgeo <- dist(coords.pop[,-1])
+
+```
+
+We'll cycle through all population-level distance matrices. For each one, we carry out a Mantel test, and write the value of the Mantel r statistic, and its p-value, into an object 'Result'.
+
+```{r}
+Result <- matrix(NA, length(GD.pop), 2, 
+                 dimnames=list(names(GD.pop), c("Mantel.r", "p-value")))
+for(i in 1:length(GD.pop))
+{
+  IBD <- mantel.randtest(as.dist(GD.pop[[i]]),Dgeo)
+  Result[i,] <- c(IBD$obs, IBD$pvalue)
+}
+Result
+```      
+
+The Mantel r statistics range between 0.64 and 0.74, which indicates quite strong spatial structure. All tests were statistically significant at alpha = 0.05, i.e., the null hypothesis of no spatial structure could be rejected no matter which distance measure was used. 
+
+Note that we did not check, or linearize, the shape of the relationships - we'll do a more thorough job in Week 6.
+
 ## 6. Analyze genetic structure with F statistics and AMOVA
 
-ADD SOME TEXT
+Beyond distance effects, we may expect mountain ridges to act as barriers for gene flow. The highest ridges typically occur between drainage systems, with minor ridges between basins with a drainage system. We can use Analysis of Molecular Variance to test for such hierarchical structure. This is done in a spatially implicit way, without considering actual spatial locations or geographic distances.
 
 ### a) F statistics and analogue measures of genetic differentiation
 
-See also: https://cran.r-project.org/web/packages/mmod/vignettes/mmod-demo.pdf
+Before considering the hierarchical sampling design, let's quantify the overall degree of genetic differentiation among populations using F statistics, specifically Fst. 
 
 ```{r}
 
 # Overall F statistics (hierfstat)
 hierfstat::fstat(Frogs.genind, pop = NULL, fstonly = FALSE)
 ``` 
+How to read this result: COMPLETE THIS!
+
+- pop & Total (top left): Fst - this is a measure of the differentiation among all populations
+- Ind & Total (top right): Fit -
+- Ind & pop (bottom right): Fis - 
 
 ```{r}
 # F statistics by locus (pegas)
 Frogs.pegas <- pegas::genind2loci(Frogs.genind)
 pegas::Fst(Frogs.pegas)
+
+# NOTE: VERY DIFFERENT RESULTS WHEN USING MEAN OF PEGAS, SHOULD BE THE SAME)
+# NEED TO CHECK ORDER?
+apply(pegas::Fst(Frogs.pegas), 2, mean)
 ``` 
+
+See also: https://cran.r-project.org/web/packages/mmod/vignettes/mmod-demo.pdf
 
 ```{r}
 # Fst analogues (mmod)
@@ -519,7 +545,7 @@ mmod::diff_stats(Frogs.genind)
 ### b) AMOVA (using 'poppr' interface to 'ade4' and 'pegas' implementations)
 See also: https://grunwaldlab.github.io/Population_Genetics_in_R/AMOVA.html
 
-There are multiple implementations of Analysis of Molecular Variance (AMOVA) in R. The package 'poppr' provides an interface to calculate AMOVA from a 'genind' object using either the implementation in 'ade4' or in 'pegas'. See also: 
+There are multiple implementations of AMOVA in R. The package 'poppr' provides an interface to calculate AMOVA from a 'genind' object using either the implementation in 'ade4' or in 'pegas'. See also: 
 
 Here we'll use the 'ade4' implementation  using the 'poppr.amova' function. Some arguments (see help file for more detail):
 
