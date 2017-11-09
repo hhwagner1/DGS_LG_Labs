@@ -14,7 +14,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-## 1. Overview of Worked Example - Hossam's edition
+## 1. Overview of Worked Example
 
 ### a) Goals 
 
@@ -51,6 +51,7 @@ require(GeNetIt)
 require(dplyr)
 require(poppr)       
 require(mmod)
+require(dplyr)
 ```
 
 ## 2. Basic checking of markers and populations
@@ -73,15 +74,16 @@ Frogs.genind
 ```
 
 ### b) Check that markers are polymorphic
-The genetic resolution depends on the number of markers and their polymorphism. The table above and the summary function for genind objects together provide this information. Here we have:
-
-- 8 loci with 3 - 9 alleles (39 in total)
-- Expected heterozygosity varies between 0.14 (locus C) and 0.78 (locus E)
-- There's a reasonable level of missing values (10.6%) 
+The genetic resolution depends on the number of markers and their polymorphism. The table above and the summary function for genind objects together provide this information. Now we run the summary function:
 
 ```{r}
 summary(Frogs.genind)
 ```
+The output of the summary function shows us the following:
+
+- 8 loci with 3 - 9 alleles (39 in total)
+- Expected heterozygosity varies between 0.14 (locus C) and 0.78 (locus E)
+- There's a reasonable level of missing values (10.6%) 
 
 ### c) Check for deviations from Hardy-Weinberg equilibrium (HWE)
 
@@ -101,7 +103,7 @@ Here are p-values for two alternative tests of deviation from HWE for each locus
 round(pegas::hw.test(Frogs.genind, B = 1000),3)
 ```
 
-Both tests suggest that most loci are out of HWE globally (across all 181 individuals). Next, we check for HWE of each locus in each population.
+Both tests suggest that all loci except for locus "F" are out of HWE globally (across all 181 individuals). Next, we check for HWE of each locus in each population.
 
 Note on code: The curly brackets '{ }' below are used to keep the output from multiple lines together in the html file.
 
@@ -129,7 +131,7 @@ alpha=0.05
 #alpha=0.05/(nrow(HWE.test) * ncol(HWE.test))   # Optional Bonferroni correction
 Prop.loci.out.of.HWE <- data.frame(Chisq=apply(HWE.test.chisq<alpha, 2, mean), 
            MC=apply(HWE.test.MC<alpha, 2, mean))
-Prop.loci.out.of.HWE
+Prop.loci.out.of.HWE             # Type this line again to see results table
 ```
 
 And similarly, for each population, the proportion of loci that were out of HWE:
@@ -137,7 +139,7 @@ And similarly, for each population, the proportion of loci that were out of HWE:
 ```{r}
 Prop.pops.out.of.HWE <- data.frame(Chisq=apply(HWE.test.chisq<alpha, 1, mean), 
            MC=apply(HWE.test.MC<alpha, 1, mean))
-Prop.pops.out.of.HWE
+Prop.pops.out.of.HWE             # Type this line again to see results table
 ```
 The results suggest that:
 
@@ -159,6 +161,7 @@ Overall, there is statistically significant association among the markers (p-val
 ```{r, fig.show='hold'}
 poppr::ia(Frogs.genind, sample=199)
 LD.pair <- poppr::pair.ia(Frogs.genind)
+LD.pair
 ```
 
 The strongest correlation is around 0.2, for markers E and H. 
@@ -167,7 +170,9 @@ Effect size: If rbarD can be interpreted similarly to a linear correlation coeff
 
 ### e) Check for null alleles (PopGenReport)
 
-NEED SOME TEXT HERE
+See also: http://www.nature.com/articles/6800545
+
+One potential drawback for microsatellites as molecular markers is the presence of null alleles that fail to amplify, thus they couldn't be detected in the PCR assays.
 
 The function 'null.all' returns a list with two components ('homozygotes' and 'null.allele.freq'), and each of these is again a list. See '?null.all' for details and choice of method.
 
@@ -194,7 +199,7 @@ Each summary table contains a summary with observed, median, 2.5th percentile an
 
 Both methods suggest that there may be null alleles in most (summary1) or all loci (summary2).
 
-WHAT TO DO WITH THIS INFORMATION??
+WHAT TO DO WITH THIS INFORMATION?
 ```{r}
 {cat(" summary1 (Chakraborty et al. 1994):", "\n")
 round(Null.alleles$null.allele.freq$summary1,2)  
@@ -212,7 +217,7 @@ The 'genind' object can store non-genetic data in a slot called 'other'. Here we
 
 ### a) Add spatial coordinates and site variables to 'other' slot
 
-We import the UTM coordinates from 'ralu.site@coords'. We use the function 'spTransform' to conver them to latlong data (x = Longitude, y = Latitude) to facilitate plotting results on Google maps later in the course. We use 'get_proj4' (see Week 2) to define the projection.
+We import the UTM coordinates from 'ralu.site@coords'. We use the function 'spTransform' to convert them to latlong data (x = Longitude, y = Latitude) to facilitate plotting results on Google maps later in the course. We use 'get_proj4' (see Week 2) to define the projection.
 
 ```{r}
 data(ralu.site, package="GeNetIt")
@@ -464,11 +469,11 @@ round(cor(sapply(GD.pop, function(ls) as.vector(ls))),2)
 Use 'save' to save an R object to your file system, and 'load' to read it in again. Note: the default setting is that 'save' will overwrite existing files with the same name.
 
 ```{r}
-save(GD.ind, file = "./data/GD.ind.RData")
-load("./data/GD.ind.RData")
+#save(GD.ind, file = "./data/GD.ind.RData")
+#load("./data/GD.ind.RData")
 
-save(GD.pop, file = "./data/GD.pop.RData")
-load("./data/GD.pop.RData")
+#save(GD.pop, file = "./data/GD.pop.RData")
+#load("./data/GD.pop.RData")
 ```
 
 ### e) Test for isolation by distance (adegenet)
@@ -519,11 +524,18 @@ Before considering the hierarchical sampling design, let's quantify the overall 
 # Overall F statistics (hierfstat)
 hierfstat::fstat(Frogs.genind, pop = NULL, fstonly = FALSE)
 ``` 
-How to read this result: COMPLETE THIS!
+How to read this result:
 
-- pop & Total (top left): Fst - this is a measure of the differentiation among all populations
-- Ind & Total (top right): Fit -
-- Ind & pop (bottom right): Fis - 
+F statistics were developed by Sewall Wright (1943) to evaluate departures from HWE for subdivided populations.
+
+- F (Fixation index): Fixation means increased homozygosity
+
+- FIS (Inbreeding coefficient): The probability of uniting gametes relative to gametes drawn
+at random from within a subpopulation (Individual within the Subpopulation)
+
+- FST (A measure of population substructure): The probability of uniting gametes within subpopulations relative to gametes drawn at random from the entire population (Subpopulation within the Total population).
+
+- FIT (Overall inbreeding coefficient): Inbreeding coefficient of an individual relative to the total population (Individual within the Total population).
 
 ```{r}
 # F statistics by locus (pegas)
