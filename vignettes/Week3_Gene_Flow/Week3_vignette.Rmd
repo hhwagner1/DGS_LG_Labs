@@ -51,6 +51,7 @@ require(GeNetIt)
 require(dplyr)
 require(poppr)       
 require(mmod)
+require(dplyr)
 ```
 
 ## 2. Basic checking of markers and populations
@@ -78,7 +79,7 @@ The genetic resolution depends on the number of markers and their polymorphism. 
 ```{r}
 summary(Frogs.genind)
 ```
-The output of the summaru function shows us the following:
+The output of the summary function shows us the following:
 
 - 8 loci with 3 - 9 alleles (39 in total)
 - Expected heterozygosity varies between 0.14 (locus C) and 0.78 (locus E)
@@ -102,7 +103,7 @@ Here are p-values for two alternative tests of deviation from HWE for each locus
 round(pegas::hw.test(Frogs.genind, B = 1000),3)
 ```
 
-Both tests suggest that all loci escept for locus "F" are out of HWE globally (across all 181 individuals). Next, we check for HWE of each locus in each population.
+Both tests suggest that all loci except for locus "F" are out of HWE globally (across all 181 individuals). Next, we check for HWE of each locus in each population.
 
 Note on code: The curly brackets '{ }' below are used to keep the output from multiple lines together in the html file.
 
@@ -169,7 +170,9 @@ Effect size: If rbarD can be interpreted similarly to a linear correlation coeff
 
 ### e) Check for null alleles (PopGenReport)
 
-One potential drawback for Microsatellites as molecular markers is the presence of null alleles that fail to amplify, thus they couldn't be detected in the PCR assays.
+See also: http://www.nature.com/articles/6800545
+
+One potential drawback for microsatellites as molecular markers is the presence of null alleles that fail to amplify, thus they couldn't be detected in the PCR assays.
 
 The function 'null.all' returns a list with two components ('homozygotes' and 'null.allele.freq'), and each of these is again a list. See '?null.all' for details and choice of method.
 
