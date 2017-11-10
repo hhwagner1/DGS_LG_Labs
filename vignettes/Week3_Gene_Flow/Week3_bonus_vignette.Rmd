@@ -70,7 +70,7 @@ Frogs.genind <- adegenet::df2genind(X=Frogs[,c(4:11)], sep=":", ncode=NULL,
                           ind.names= Frogs$FrogID, loc.names=NULL, 
                           pop=Frogs$Pop, NA.char="NA", ploidy=2, 
                           type="codom", strata=NULL, hierarchy=NULL)
-
+Frogs.genpop <- adegenet::genind2genpop(Frogs.genind)
 ```
 
 ### b) Add spatial coordinates and site variables to 'other' slot
