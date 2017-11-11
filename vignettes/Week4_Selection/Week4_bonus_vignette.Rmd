@@ -36,14 +36,19 @@ This bonus material shows how to:
 All required packages should have been installed already when you installed 'LandGenCourse'.
 
 ```{r message=FALSE, warning=TRUE}
+
+#devtools::install_github("kjgilbert/QstFstComp")
+#source("http://bioconductor.org/biocLite.R")
+#biocLite("LEA")
+
 #require(lme4)
 #require(car)
 require(here)
 require(hierfstat)
 require(QstFstComp)
 
-source("http://bioconductor.org/biocLite.R")
-     biocLite("LEA")
+
+
 require(LEA)
 
 source(paste0(here(),"/data/supplemental_R_functions.R"))
@@ -59,10 +64,19 @@ if(!dir.exists(paste0(here(),"/data"))) dir.create(paste0(here(),"/data"))
 
 ### a) Import and check SNP data 
 
-First, let’s examine differentiation for the SNP data using FST. There are a multitude of ways to do this, but we will use the algorithms and approaches in the hierfstat library.
+First, we need to import the SNP data, and also recreate the phenotypic and environmental data (Week 4).
 
 ```{r}
-snp <- read.delim("WWP_SNP_genotypes.txt", sep = "\t", header = T)
+snp <- read.delim(paste0(here(),"/data/WWP_SNP_genotypes.txt"), 
+                  sep = "\t", header = T)
+phen <- read.delim(paste0(here(),"/data/WWP_phenotype_data.txt"), 
+                   sep = "\t", header = T)
+env <- read.delim(paste0(here(),"/data/WWP_environmental_data.txt"), 
+                  sep = "\t", header = T)
+env2 <- data.frame(matrix(nrow=nrow(env), ncol=ncol(env)))
+colnames(env2) <- colnames(env)
+env2[,c(1:2)] <- env[,c(1:2)]
+for(i in 3:ncol(env2)) {env2[,i] <- scale(env[,i], center = T, scale = T)}
 ```
 
 Now, we need to convert the format of the SNP genotypes to FSTAT format for use in hierfstat. Please use the hierfstat_convert() function from those provided to you in the file named "supplemental_R_functions.R":
@@ -92,7 +106,7 @@ pop_ids <- data.frame(matrix(snp[,2], nrow=nrow(snp), ncol = 1)); colnames(pop_i
 
 ### b) Estimate F_{ST} from SNP data
 
-We can now estimate FST using the varcomp.glob function from hierfstat:
+Let’s examine differentiation for the SNP data using FST. There are a multitude of ways to do this, but we will use the varcomp.glob function from the 'hierfstat' package:
 
 ```{r}
 fst <- varcomp.glob(levels = pop_ids, loci = snp_reformat2, diploid = T)
@@ -163,10 +177,12 @@ We should now be ready to use the 'lfmm' function in 'LEA'. Let’s use the foll
 
 
 ```{r}
-lfmm_out <- lfmm(input.file = paste0(here(), "/data/geno_format.lfmm"), 
-                 environment.file = paste0(here(), "/data/lfmm_env.env"), 
-                 K = 5, project = "new", missing.data = T, all = T, 
-                 iterations = 10000, burnin = 5000)
+files <- c(paste0(here(), c("/data/geno_format.lfmm", "/data/lfmm_env.env")))
+#lfmm_out <- lfmm(input.file = files[1], 
+#                 environment.file = files[2], 
+#                 K = 5, project = "new", missing.data = T, all = T, 
+#                 iterations = 10000, burnin = 5000)
+#lfmm_out
 ```
 
 ### c) Choose k
@@ -180,14 +196,19 @@ pca_out <- pca(input.file = paste0(here(),"/data/geno_format.lfmm"), scale = T, 
 tracy.widom(pca_out)
 ```
 
-If you do this, look in the output of tracy.widom() for the column labeled pvalue. Select K as the number of PCs with this value below a threshold such as P = 0.05. 
+If you do this, look in the output of tracy.widom() for the column labeled pvalues. Select K as the number of PCs with this value below a threshold such as P = 0.05. 
 
 ### d) Interpret p-values
 
 Some of the main results you should inspect are the p-values for association of a SNP with an environmental gradient. These can be extracted for each environmental variable using the mlog10p.values() function: e.g. mlog10p.values(lfmm_out, K = 5, d = 1) will extract the –log10 p-values for the first environmental variable (higher values means lower p-values from testing the null hypothesis of no association between genotypic variation and environmental variation). 
 
-```{r}
-mlog10p.values(lfmm_out, K = 5, d = 1)
+```{r, fig.show='hold'}
+# Note: 'mlog10p.values' no longer available? Use 'lfmm.pvalues' instead?
+#mlog10p.values(lfmm_out, K = 5, d = 1)
+P.values <- lfmm.pvalues(lfmm_out, genomic.control=TRUE, K = 5, d = 1)
+P.values
+plot(P.value$pvalues)
+plot(sort(P.value$pvalues))
 ```
 
 Questions:
