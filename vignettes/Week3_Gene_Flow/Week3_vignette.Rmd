@@ -50,7 +50,9 @@ require(pegas)
 require(sp)
 require(PopGenReport)
 require(dplyr)
-require(poppr)       
+require(poppr)  
+
+if(!dir.exists("./data")) dir.create("./data")
 ```
 
 ## 2. Basic checking of markers and populations
@@ -320,6 +322,20 @@ Here we use 'apply' to apply the function 'mean' to the rows (MARGIN = 1). For c
   barplot(Hexp.pop, ylim=c(0,1), las=3, ylab="Expected heterozygosity")
   barplot(Hobs.pop, ylim=c(0,1), las=3, ylab="Observed heterozygosity")
 ```  
+
+### c) Create table with sitel-level genetic diversity measures
+
+```{r}
+Frogs.diversity <- data.frame(Pop = names(Hobs.pop),
+                              n = Sum$n.by.pop,
+                              Hobs = Hobs.pop,
+                              Hexp = Hexp.pop,
+                              Ar = Richness$mean.richness)
+Frogs.diversity
+
+save(Frogs.diversity, file = "./data/Frogs.diversity.RData")
+load("./data/Frogs.diversity.RData")
+```
 
 
 ## 4. Aggregate genetic data at population level (allele frequencies)

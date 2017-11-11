@@ -48,6 +48,8 @@ require(GeNetIt)
 require(dplyr)
 require(poppr)       
 require(mmod)
+require(tibble)
+if(!dir.exists("./data")) dir.create("./data")
 ```
 
 ## 2. Add sampling locations and hierarchical structure to genind object
@@ -72,8 +74,7 @@ Frogs.genind <- adegenet::df2genind(X=Frogs[,c(4:11)], sep=":", ncode=NULL,
                           type="codom", strata=NULL, hierarchy=NULL)
 Frogs.genpop <- adegenet::genind2genpop(Frogs.genind)
 ```
-
-### b) Add spatial coordinates and site variables to 'other' slot
+### b) Get site-level spatial coordinates and site variables
 
 We import the UTM coordinates from 'ralu.site@coords'. We use the function 'spTransform' to convert them to latlong data (x = Longitude, y = Latitude) to facilitate plotting results on Google maps later in the course. We use 'get_proj4' (see Week 2) to define the projection.
 
@@ -83,21 +84,40 @@ coords.longlat <- sp::spTransform(ralu.site, tmaptools::get_proj4("longlat"))@co
 dimnames(coords.longlat)[[2]] <- c("Longitude", "Latitude")
 ```
 
-The coordinates and site data are at the site level (and include more than our 12 sites), whereas the genetic data are at the individual level (181 frogs). Here we use the function 'left_join' from the 'dplyr' package to extract the coordinates and site data for each frog into a new dataframe 'tmp'.
+The data set 'ralu.site' contains 31 sites, whereas here we have only genetic data for 12 sites. Here we use the function 'left_join' from the 'dplyr' package to extract the coordinates and site data for the sites with frog data.
 
-The function 'left_join' takes a table x (here: columns 1:2 of 'ralu.loci', which has the same order as the data in our genind object that was created from it) and a table y (here, we bind the columns from the tables with the latlong coordinates, the UTM coordinates, and the site data from ralu.site into a single dataframe, using function 'cbind'). The arguent 'by' specifies which column in x and in y should be matched). The function 'left_join' then finds the rows in table y that match the rows in table x. Hence the resulting table 'tmp' should have 181 rows, one for each frog.
+We first create a data frame 'Frog.sites' that contains the population labels and full site names of from the frog genetic data set (ralu.loci). This is necessary here because ralu.site contains only the full site names, whereas 'Frogs.genind@pop' uses the short form. To join two tables, we need to have a common identifier variable.
 
 ```{r}
-tmp <- dplyr::left_join(x=ralu.loci[,1:2], 
-                 y=cbind(coords.longlat, ralu.site@coords, ralu.site@data), 
-                 by = c("SiteName" = "SiteName"))
-{cat("Number of rows and columns in joined table:", "\n")
-dim(tmp)
-cat("Variable names:", "\n")
-names(tmp)}
+Frogs.sites <- data.frame(Pop=unique(ralu.loci$Pop),
+                                       SiteName=unique(ralu.loci$SiteName))
+Frogs.sites
 ```
 
-Then we write the latlong coordinates into 'latlong', the UTM coordinates into 'xy', and the site data into 'site' (we can give this one any name). Disregard the warning: 'SiteName' is a factor in one dataset and character in the other, R is taking care of this. (We'll look at the result after the next step).
+The function 'left_join' takes a table x (here: Frog.sites) and a table y (here, we bind the columns from the tables with the latlong coordinates, the UTM coordinates, and the site data from ralu.site into a single dataframe, using function 'cbind'). The arguent 'by' specifies which column in x and in y should be matched. The function 'left_join' then finds the rows in table y that match the rows in table x.
+
+Disregard the warning: 'SiteName' is a factor in one dataset and character in the other, R is taking care of this.
+
+```{r}
+Frogs.sites <- dplyr::left_join(x=Frogs.sites,
+                               y=data.frame(coords.longlat, ralu.site@coords,
+                                       ralu.site@data), 
+                               by = c("SiteName" = "SiteName"))
+as.tibble(Frogs.sites)
+```
+
+### c) Add spatial coordinates and site variables to 'other' slot
+
+The data in Frog.sites are at the site level, whereas the genetic data are at the individual level (181 frogs). We can extract the corresponding site data for each frog and add them to the genind object.
+
+```{r}
+tmp <- dplyr::left_join(x=data.frame(Pop=Frogs.genind@pop), 
+                 y=Frogs.sites, 
+                 by = c("Pop" = "Pop"))
+as.tibble(tmp)
+```
+
+Then we write the latlong coordinates into 'latlong', the UTM coordinates into 'xy', and the site data into 'site' (we can give this one any name).  (We'll look at the result after the next step).
 
 ```{r}
 Frogs.genind@other$latlong <- tmp[,3:4]
@@ -105,7 +125,14 @@ Frogs.genind@other$xy <- tmp[,5:6]
 Frogs.genind@other$site <- tmp[,-c(3:6)]
 ```
 
-### c) Fill 'strata' and 'hierarchy' slots
+Let's save the complete genind object:
+
+```{r}
+save(Frogs.genind, file = "./data/Frogs.genind.RData")
+load("./data/Frogs.genind.RData")
+```
+
+### e) Fill 'strata' and 'hierarchy' slots
 
 Defining the sampling hierarchy is required e.g. for testing for significant differentiation at each level (AMOVA). We need to define two slots:
 
@@ -230,11 +257,11 @@ round(cor(sapply(GD.pop, function(ls) as.vector(ls))),2)
 Use 'save' to save an R object to your file system, and 'load' to read it in again. Note: the default setting is that 'save' will overwrite existing files with the same name.
 
 ```{r}
-#save(GD.ind, file = "./data/GD.ind.RData")
-#load("./data/GD.ind.RData")
+save(GD.ind, file = "./data/GD.ind.RData")
+load("./data/GD.ind.RData")
 
-#save(GD.pop, file = "./data/GD.pop.RData")
-#load("./data/GD.pop.RData")
+save(GD.pop, file = "./data/GD.pop.RData")
+load("./data/GD.pop.RData")
 ```
 
 ### e) Test for isolation by distance (adegenet)
@@ -366,9 +393,37 @@ Hence there is statistically significant differentiation at all levels, except f
 
 ### c) Contribution of each population to Fst
 
-THIS PART IS MISSING!
+See also: Foll M and Gaggiotti O. 2006. Identifying the environmental factors that determine the genetic structure of populations. Genetics 174: 875-891. http://www.genetics.org/content/174/2/875
+
+The degree of differentiation of each local population (deme) from all others can be expressed in an Fst value for each site. This has been implemented in the software GESTE (for Windows): 
+http://www-leca.ujf-grenoble.fr/moyens-techniques/logiciels/article/population-genomics-software?lang=fr
+
+Balkenhol (citation?) has used a simpler approach that averages the pairwise Fst values for each population. We already have calculated pairwise Fst values. It is an object of class 'dist'. The function 'as.matrix' converts from the distance vector format to the full distance matrix. We set the diagonal to missing values 'NA'. Then we use 'apply' to take the mean across each row = site, using option 'na.rm' to ignore missing values. 
 
 ```{r}
-
-
+Matrix <- as.matrix(Pairwise.fst)
+diag(Matrix) <- NA
+Fst.per.site <- apply(Matrix, 1, mean, na.rm=TRUE)
+names(Fst.per.site) <- levels(Frogs.genind$pop)
+round(Fst.per.site, 3)
 ```
+
+Let's plot it against sample size (left) and pond area (right).
+
+```{r, fig.show='hold'}
+par(mar=c(4, 4.5,1,1))
+plot(Frogs.sites$n, Fst.per.site, xlim=c(5,25),  ylim=c(0, 0.25),
+       xlab = "Sample size", ylab = "Average pair-wise Fst")
+abline(lm(Fst.per.site ~ summary(Frogs.genind)$n.by.pop), col = "red")
+text(x=summary(Frogs.genind)$n.by.pop, y=Fst.per.site,
+     labels=names(Fst.per.site), pos=4)
+
+plot(Frogs.sites$AREA_m2, Fst.per.site, xlim=c(5,25),  ylim=c(0, 0.25),
+       xlab = "Sample size", ylab = "Average pair-wise Fst")
+abline(lm(Fst.per.site ~ summary(Frogs.genind)$n.by.pop), col = "red")
+text(x=summary(Frogs.genind)$n.by.pop, y=Fst.per.site,
+     labels=names(Fst.per.site), pos=4)
+```  
+
+This is a counter-intuitive result, as we expect small populations to have higher drift and thus stronger differentiation. However, sample size is not the same as (effective) population size, and we did not take into account isolation either.
+
