@@ -27,9 +27,9 @@ This bonus material shows how to:
 
 ### b) Data set 
 
-- SNP genotypes for all trees sampled in the field.
-- Environmental data collected from each plot within each population.
-- Phenotypic measurements for 5 seedlings per tree made in a common garden.
+- **WWP_SNP_genotypes.txt**: SNP genotypes for all trees sampled in the field.
+- **WWP_environmental_data.txt**:Environmental data collected from each plot within each population.
+- **WWP_phenotype_data.txt**: Phenotypic measurements for 5 seedlings per tree made in a common garden.
 
 ### c) Required R libraries
 
@@ -38,6 +38,7 @@ All required packages should have been installed already when you installed 'Lan
 ```{r message=FALSE, warning=TRUE}
 #require(lme4)
 #require(car)
+require(here)
 require(hierfstat)
 require(QstFstComp)
 
@@ -45,9 +46,9 @@ source("http://bioconductor.org/biocLite.R")
      biocLite("LEA")
 require(LEA)
 
-# Source file: supplemental_R_functions.R
+source(paste0(here(),"/data/supplemental_R_functions.R"))
 
-if(!dir.exists("./data")) dir.create("./data")
+if(!dir.exists(paste0(here(),"/data"))) dir.create(paste0(here(),"/data"))
 ```
 
 ## 2. Compare Q_{ST} to F_{ST} 
@@ -145,14 +146,14 @@ We need to put the genotype data in a format labeled as lfmm for LEA. This forma
 
 ```{r}
 geno_snp <- geno_reformat(snp = snp_reformat2)
-write.table(t(geno_snp), file = "./data/geno_format.lfmm", sep = "\t", row.names = F, col.names = F)
+write.table(t(geno_snp), file = paste0(here(), "/data/geno_format.lfmm"), sep = "\t", row.names = F, col.names = F)
 ```
 
 Now, we need to do the same for the environmental data. Let’s use the centered and scaled data from before, which are located in the env2 object:
 
 ```{r}
 env3 <- env2[,-c(1:4)]
-write.table(env3, file = "./data/lfmm_env.env", sep = "\t", row.names = F, col.names = F)
+write.table(env3, file = paste0(here(), "/data/lfmm_env.env"), sep = "\t", row.names = F, col.names = F)
 ```
 
 ### b) Basic analysis
@@ -162,8 +163,8 @@ We should now be ready to use the 'lfmm' function in 'LEA'. Let’s use the foll
 
 
 ```{r}
-lfmm_out <- lfmm(input.file = "./data/geno_format.lfmm", 
-                 environment.file = "./data/lfmm_env.env", 
+lfmm_out <- lfmm(input.file = paste0(here(), "/data/geno_format.lfmm"), 
+                 environment.file = paste0(here(), "/data/lfmm_env.env"), 
                  K = 5, project = "new", missing.data = T, all = T, 
                  iterations = 10000, burnin = 5000)
 ```
@@ -175,7 +176,7 @@ You can now spend some time varying parameters. I would start with K and vary it
 To get an idea of which K might be best, you can do the following. Use the pca_out <- pca(input.file="geno_format.lfmm", scale = T, center = T) and tracy.widom(<output from pca>) functions from LEA to determine the number of PCs that best explain your data. 
 
 ```{r}
-pca_out <- pca(input.file="./data/geno_format.lfmm", scale = T, center = T)
+pca_out <- pca(input.file = paste0(here(),"/data/geno_format.lfmm"), scale = T, center = T)
 tracy.widom(pca_out)
 ```
 
