@@ -22,8 +22,9 @@ vignette: >
 
 This bonus material shows how to:
 
-- Test whether or not phenotypic trait differentiation is statistically different than genetic differentiation at random molecular markers.
-- Perform and assess output from basic association analyses linking genetic variation with environmental variation. We will return to the topic of outlier locus detection and gene-environment associations later in the course (Week 11).
+- Test whether or not phenotypic trait differentiation is statistically different than genetic differentiation at random molecular genetic markers (SNPs).
+- Test whether molecular markers behave neutrally ($F_{ST}$ outliers)
+- Test association between trait and molecular markers
 
 ### b) Data set 
 
@@ -36,31 +37,22 @@ This bonus material shows how to:
 All required packages should have been installed already when you installed 'LandGenCourse'.
 
 ```{r message=FALSE, warning=TRUE}
-
 #devtools::install_github("kjgilbert/QstFstComp")
 #source("http://bioconductor.org/biocLite.R")
 #biocLite("LEA")
-
-#require(lme4)
-#require(car)
 require(here)
 require(hierfstat)
 require(QstFstComp)
-
-
-
 require(LEA)
-
 source(paste0(here(),"/data/supplemental_R_functions.R"))
-
 if(!dir.exists(paste0(here(),"/data"))) dir.create(paste0(here(),"/data"))
 ```
 
-## 2. Compare Q_{ST} to F_{ST} 
+## 2. Estimate $F_{ST}$ from SNP data
 
-**Motivation**: Now that we have shown that genetic variation for δ13C within populations is significantly greater than zero (i.e. h2 > 0), that differentiation for δ13C is statistically greater than zero (i.e. QST > 0), and that climate, and to a lesser degree geography, is correlated with δ13C values, we can formally test whether or not differentiation for δ13C is unexplainable due to neutral processes such as genetic drift and gene flow. The general idea is use a set of genetic markers we think primarily reflects neutral processes to estimate what QST should be without any form of natural selection operating in our system. To do that, we will use 164 SNPs sampled from gene regions that have no apparent functional connection to δ13C. This will allow us to conclude that the differentiation we see is not just different from zero (done before), but different than expectations from a neutral model.
+**Motivation**: Now that we have shown that genetic variation for $δ^{13}C$ within populations is significantly greater than zero (i.e. $h^2 > 0$), that differentiation for $δ^{13}C$ is statistically greater than zero (i.e. $Q_{ST} > 0$), and that climate, and to a lesser degree geography, is correlated with $δ^{13}C$ values, we can formally test whether or not differentiation for $δ^{13}C$ is unexplainable due to neutral processes such as genetic drift and gene flow. The general idea is use a set of genetic markers we think primarily reflects neutral processes to estimate what $Q_{ST}$ should be without any form of natural selection operating in our system. To do that, we will use 164 SNPs sampled from gene regions that have no apparent functional connection to $δ^{13}C$. This will allow us to conclude that the differentiation we see is not just different from zero (done before), but different than expectations from a neutral model.
 
-**Goals & Background**: The goal for this part of the laboratory is to test the hypothesis that QST is greater than FST. We will do that using SNP data that are stored in the file named "WWP_SNP_genotypes.txt". As with the previous files, this is a tab-delimited text file.
+**Goals & Background**: The goal for this part of the laboratory is to test the hypothesis that $Q_{ST} > F_{ST}$. We will do that using SNP data that are stored in the file named "WWP_SNP_genotypes.txt". As with the previous files, this is a tab-delimited text file.
 
 ### a) Import and check SNP data 
 
@@ -79,7 +71,7 @@ env2[,c(1:2)] <- env[,c(1:2)]
 for(i in 3:ncol(env2)) {env2[,i] <- scale(env[,i], center = T, scale = T)}
 ```
 
-Now, we need to convert the format of the SNP genotypes to FSTAT format for use in hierfstat. Please use the hierfstat_convert() function from those provided to you in the file named "supplemental_R_functions.R":
+Now, we need to convert the format of the SNP genotypes to FSTAT format for use in hierfstat. Please use the 'hierfstat_convert' function from those provided to you in the file named "supplemental_R_functions.R":
 
 ```{r}
 snp_reformat <- hierfstat_convert(snp = snp, ids = c(1,2))
@@ -101,12 +93,13 @@ Now, we need to add names to the SNPs that are renaming and create the populatio
 
 ```{r}
 colnames(snp_reformat2) <- colnames(snp)[3:ncol(snp)][-which(mono == 1)]
-pop_ids <- data.frame(matrix(snp[,2], nrow=nrow(snp), ncol = 1)); colnames(pop_ids) <- c("population")
+pop_ids <- data.frame(matrix(snp[,2], nrow=nrow(snp), ncol = 1))
+colnames(pop_ids) <- c("population")
 ```
 
-### b) Estimate F_{ST} from SNP data
+### b) Estimate global $F_{ST}$ 
 
-Let’s examine differentiation for the SNP data using FST. There are a multitude of ways to do this, but we will use the varcomp.glob function from the 'hierfstat' package:
+Let’s examine differentiation for the SNP data using $F_{ST}$. There are a multitude of ways to do this, but we will use the varcomp.glob function from the 'hierfstat' package:
 
 ```{r}
 fst <- varcomp.glob(levels = pop_ids, loci = snp_reformat2, diploid = T)
@@ -114,109 +107,60 @@ fst <- varcomp.glob(levels = pop_ids, loci = snp_reformat2, diploid = T)
 
 Note you can also explore bootstrapping across loci to get a confidence interval using the boot.vc() function.
 
-Now, let’s look at the output. The object fst has three elements. The first element is matrix of variance components for each SNP ('loc'). The columns of this matrix are levels you used from the highest to the lowest (left to right). For us, that means column 1 is the variance component for population, column 2 is the variance component for individual, and column 3 is the variance component for the error (or residual). The second element is the sum of the columns ('overall'). The last element is a matrix of F-statistics ('F'). These work by using as subscripts the column title relative to the row title, so the first value on the first line is the F- statistic for population relative to total (i.e. FST). It is calculated based on the variance components from $overall as:
+Now, let’s look at the output. The object fst has three elements. The first element is matrix of variance components for each SNP ('loc'). The columns of this matrix are levels you used from the highest to the lowest (left to right). For us, that means column 1 is the variance component for population, column 2 is the variance component for individual, and column 3 is the variance component for the error (or residual). The second element is the sum of the columns ('overall'). The last element is a matrix of F-statistics ('F'). These work by using as subscripts the column title relative to the row title, so the first value on the first line is the F- statistic for population relative to total (i.e. $F_{ST}$). It is calculated based on the variance components from $overall as:
 
 $$F_{pop,tot} = \frac{\sigma^{2}_{pop}}
 {\sigma^{2}_{pop}+\sigma^{2}_{ind}+\sigma^{2}_{error}}$$
 
-Let’s inspect the results by SNP. We can calculate FST for each SNP (or any locus for that matter) using the equation above and the variance components in $loc. I have provided a function to do this for you in the "supplemental_R_functions.R" file: fst_persnp()
+### c) Compare $Q_{ST}$ to $F_{ST}$
+
+Now that we have inspected overall genetic differentiation among populations, let’s use the QstFstComp library to formally test whether or not $Q_{ST} > F_{ST}$ for $δ^{13}C$.
+
+```{r}
+phen_mod <- phen[,-c(2,4)]
+snp_reformat3 <- cbind(snp[,2], snp_reformat2); colnames(snp_reformat3)[1] <- c("population")
+QstFst_out <- QstFstComp(fst.dat = snp_reformat3, qst.dat = phen_mod, 
+                         numpops = 10, nsim = 10000, 
+                         breeding.design = "half.sib.dam", 
+                         dam.offspring.relatedness = 0.25, output = "concise")
+QstFst_out
+```
+
+Inspect the first and third elements of the list 'QstFst_out'. Is $Q_{ST} > F_{ST}$? What does this mean biologically? Why is the estimated $Q_{ST}$ a little higher here as opposed to the point estimate from before?
+
+## 3. Test for $F_{ST}$ outlier loci
+
+### a) Estimate $F_{ST}$ for each SNP
+
+Let’s inspect the results by SNP. We can calculate $F_{ST}$ for each SNP (or any locus for that matter) using the equation above and the variance components in $loc. I have provided a function to do this for you in the "supplemental_R_functions.R" file: 'fst_persnp'.
 
 ```{r}
 fst_snp <- fst_persnp(vc = fst$loc, names = colnames(snp_reformat2))
 ```
 
-Inspect the variation across loci relative to the global (multilocus value). Please realize that negative values should be considered as 0. These values are artifacts of estimating the variance components with finite sample sizes. For fun, use the het_snp() function in the "supplemental_R_functions.R" file to get heterozygosity and plot FST against heterozygosity: 
+Inspect the variation across loci relative to the global (multilocus value). Please realize that negative values should be considered as 0. These values are artifacts of estimating the variance components with finite sample sizes. 
 
+### b) Estimate heterozygosity for each SNP
+
+Use the 'het_snp' function in the "supplemental_R_functions.R" file to get heterozygosity. 
 ```{r}
 het_out <- het_snp(snp=snp_reformat2, finite.cor= T, names = colnames(snp_reformat2))
 ```
 
-Look for any trends. To make a plot like those from Arlequin, you can divide the heterozygosity values by (1 – FST) prior to plotting them.
-
-### c) Compare Q_{ST} to F_{ST}
-
-Now that we have inspected overall genetic differentiation among populations, let’s use the QstFstComp library to formally test whether or not QST > FST for δ13C.
-
-```{r}
-phen_mod <- phen[,-c(2,4)]
-snp_reformat3 <- cbind(snp[,2], snp_reformat2); colnames(snp_reformat3)[1] <- c("population")
-QstFst_out <- QstFstComp(fst.dat = snp_reformat3, qst.dat = phen_mod, numpops = 10, nsim = 10000, breeding.design = "half.sib.dam", dam.offspring.relatedness = 0.25, output = "concise")
-QstFst_out
-```
-
-Inspect the first and third elements of the list 'QstFst_out'. Is QST > FST? What does this mean biologically? Why is the estimated QST a little higher here as opposed to the point estimate from before?
-
-## 3. Test association between genetic and environmental data
-
-**Motivation**: So far we have shown the following: δ13C is genetically determined, genetically structured among populations, correlated to a variety of environmental variables, and that the structuring of genetic diversity for δ13C is statistically greater than that for random SNP markers. That sounds awesome, but we can go a bit further. Although we assumed that the SNP markers had no effect on δ13C and were neutral, we should probably check to see if that is true. To do so, we will use an environmental association approach that also corrects for background levels of population structure. Alternatively, if we had other markers that were good candidates to affect δ13C we could see if they were consistent with acting as the genetic architecture of δ13C, which appears to contribute to local adaptation of P. monticola in the Lake Tahoe Basin.
-
-**Goals & Background**: The goal of this part of the laboratory is to explore environmental associations of the SNP genotypes with the environmental data. We will do this with the relatively new R package named LEA, which allows use of latent factor mixed models (LFMM) to carry out the analysis (see more at: https://www.bioconductor.org/packages/release/bioc/html/LEA.html).
-
-### a) Reformat SNP and environmental data
-
-We have to reformat our data yet again. Do you not love software designers and their sadomasochistic need to make us do this? Okay, rant over. Let’s get to work.
-
-We need to put the genotype data in a format labeled as lfmm for LEA. This format is a matrix, with sampled trees as rows and SNPs as columns. In each cell of this matrix is a 0, 1, or 2, which represents the count of a reference allele for that sampled tree for that SNP. Our reference allele will be the minor allele (i.e. the one with the lowest sample frequency across all sampled trees). I have provided a function to do this in the "supplemental_R_functions.R" file: geno_reformat(). This function operates on the snp_reformat2 object from our previous work:
-
-```{r}
-geno_snp <- geno_reformat(snp = snp_reformat2)
-write.table(t(geno_snp), file = paste0(here(), "/data/geno_format.lfmm"), sep = "\t", row.names = F, col.names = F)
-```
-
-Now, we need to do the same for the environmental data. Let’s use the centered and scaled data from before, which are located in the env2 object:
-
-```{r}
-env3 <- env2[,-c(1:4)]
-write.table(env3, file = paste0(here(), "/data/lfmm_env.env"), sep = "\t", row.names = F, col.names = F)
-```
-
-### b) Basic analysis
-
-We should now be ready to use the 'lfmm' function in 'LEA'. Let’s use the following command to run a simple analysis (note that the paths here assume that the needed files are in your working directory):
-
-
-
-```{r}
-files <- c(paste0(here(), c("/data/geno_format.lfmm", "/data/lfmm_env.env")))
-#lfmm_out <- lfmm(input.file = files[1], 
-#                 environment.file = files[2], 
-#                 K = 5, project = "new", missing.data = T, all = T, 
-#                 iterations = 10000, burnin = 5000)
-#lfmm_out
-```
-
-### c) Choose k
-
-You can now spend some time varying parameters. I would start with K and vary it from 2 to 10 to see how the results change. 
-
-To get an idea of which K might be best, you can do the following. Use the pca_out <- pca(input.file="geno_format.lfmm", scale = T, center = T) and tracy.widom(<output from pca>) functions from LEA to determine the number of PCs that best explain your data. 
-
-```{r}
-pca_out <- pca(input.file = paste0(here(),"/data/geno_format.lfmm"), scale = T, center = T)
-tracy.widom(pca_out)
-```
-
-If you do this, look in the output of tracy.widom() for the column labeled pvalues. Select K as the number of PCs with this value below a threshold such as P = 0.05. 
-
-### d) Interpret p-values
-
-Some of the main results you should inspect are the p-values for association of a SNP with an environmental gradient. These can be extracted for each environmental variable using the mlog10p.values() function: e.g. mlog10p.values(lfmm_out, K = 5, d = 1) will extract the –log10 p-values for the first environmental variable (higher values means lower p-values from testing the null hypothesis of no association between genotypic variation and environmental variation). 
+Plot $F_{ST}$ against heterozygosity (left). To make a plot like those from Arlequin, you can divide the heterozygosity values by $(1 – F_{ST})$ prior to plotting them (right).
 
 ```{r, fig.show='hold'}
-# Note: 'mlog10p.values' no longer available? Use 'lfmm.pvalues' instead?
-#mlog10p.values(lfmm_out, K = 5, d = 1)
-P.values <- lfmm.pvalues(lfmm_out, genomic.control=TRUE, K = 5, d = 1)
-P.values
-plot(P.value$pvalues)
-plot(sort(P.value$pvalues))
+plot(het_out, fst_snp)
+plot(het_out/(1-fst_snp), fst_snp)
 ```
 
-Questions:
+### c) Test for $F_{ST}$ outlier loci
 
-- Which environmental variables have the highest –log10 p-values? 
-- If you correct for multiple tests per environmental variable using a Bonferroni correction, the –log10 p-value threshold is: -log10(0.05/160) = 3.50515. Which environmental variables have SNPs with –log10 p-values greater than this threshold? 
-- How do these relate to the partial regression coefficients from the multiple regression model linking genetic values of δ13C? 
-- Are the SNPs with high –log10 p-values those with FST larger than the multilocus values?
+ADD THIS PART?
+
+## 4. Test association between trait and genetic data
+
+ADD THIS PART?
 
 
 
