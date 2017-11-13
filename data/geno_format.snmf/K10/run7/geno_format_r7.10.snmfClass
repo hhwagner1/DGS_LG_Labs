@@ -1,0 +1,19 @@
+new("snmfClass"
+    , directory = "K10/run7/"
+    , snmfClass.file = "geno_format_r7.10.snmfClass"
+    , K = 10L
+    , run = 7L
+    , CPU = 1L
+    , seed = 2027965174L
+    , alpha = 10
+    , percentage = 0.05
+    , I = 0L
+    , iterations = 200L
+    , entropy = TRUE
+    , tolerance = 1e-05
+    , crossEntropy = 0.718282069765526
+    , ploidy = 2L
+    , Q.input.file = ""
+    , Q.output.file = "geno_format_r7.10.Q"
+    , G.output.file = "geno_format_r7.10.G"
+)

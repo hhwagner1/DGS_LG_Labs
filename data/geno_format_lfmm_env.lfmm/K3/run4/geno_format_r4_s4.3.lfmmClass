@@ -1,0 +1,19 @@
+new("lfmmClass"
+    , directory = "K3/run4/"
+    , lfmmClass.file = "geno_format_r4_s4.3.lfmmClass"
+    , K = 3L
+    , d = 4L
+    , Niter = 6000L
+    , burn = 3000L
+    , CPU = 1L
+    , seed = 1436722342L
+    , missing.data = FALSE
+    , all = FALSE
+    , run = 4L
+    , epsilon.noise = 0.001
+    , epsilon.b = 1000
+    , random.init = TRUE
+    , zscore.file = "geno_format_r4_s4.3.zscore"
+    , deviance = 25120.1532501284
+    , DIC = 25117.634005473
+)

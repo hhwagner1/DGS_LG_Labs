@@ -1,0 +1,19 @@
+new("snmfClass"
+    , directory = "K1/run6/"
+    , snmfClass.file = "geno_format_r6.1.snmfClass"
+    , K = 1L
+    , run = 6L
+    , CPU = 1L
+    , seed = 1601293110L
+    , alpha = 10
+    , percentage = 0.05
+    , I = 0L
+    , iterations = 200L
+    , entropy = TRUE
+    , tolerance = 1e-05
+    , crossEntropy = 0.631980814584761
+    , ploidy = 2L
+    , Q.input.file = ""
+    , Q.output.file = "geno_format_r6.1.Q"
+    , G.output.file = "geno_format_r6.1.G"
+)

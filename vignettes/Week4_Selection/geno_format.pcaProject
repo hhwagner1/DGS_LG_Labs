@@ -1,0 +1,15 @@
+new("pcaProject"
+    , projDir = "/Users/hhwagner1/Desktop/R_GitHub_Projects/DGS_LG_Labs/data/"
+    , pcaDir = "geno_format.pca/"
+    , n = 157L
+    , L = 160L
+    , K = 157L
+    , center = TRUE
+    , scale = TRUE
+    , pcaProject.file = "geno_format.pcaProject"
+    , input.file = "geno_format.lfmm"
+    , eigenvalue.file = "geno_format.eigenvalues"
+    , eigenvector.file = "geno_format.eigenvectors"
+    , sdev.file = "geno_format.sdev"
+    , projection.file = "geno_format.projections"
+)
