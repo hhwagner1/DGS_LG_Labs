@@ -42,6 +42,7 @@ vignettes/Week3_Gene_Flow/data
 downloads
 
 # Output folders created by vignettes
+*.html
 vignettes/Week1_Importing_Genetic_Data/*.html
 vignettes/Week2_Spatial_Data/*.html
 vignettes/Week3_Gene_Flow/*.html
