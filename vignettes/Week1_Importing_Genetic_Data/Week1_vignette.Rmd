@@ -44,7 +44,7 @@ require(adegenet)
 require(gstudio)
 require(LandGenCourse)
 require(tibble)
-require(here)
+#require(here)
 ```
 
 ## 2. Import data from .csv file
@@ -132,6 +132,7 @@ The first line checks whether a subdirectory "output" already exists, and create
 The function 'here' from the package 'here' finds the path to your project folder, so that we can paste it together with the relative path to folder 'output' within the project folder.
 
 ```{r}
+#require(here)
 #if(!dir.exists(paste0(here(),"/output"))) dir.create(paste0(here(),"/output"))
 #write.csv(ralu.loci, paste0(here(),"/output/ralu.loci.csv"), 
 #          quote=FALSE, row.names=FALSE)
@@ -270,7 +271,7 @@ Frogs.gstudio <- read_population(path=system.file("extdata", "ralu.loci.csv",
 Check the column types: 'SiteName' and 'Pop' are now character vectors, and the loci columns A - H are now of class 'locus' (it is indicated that 'locus' is a S3 object type).
 
 ```{r}
-as.tibble(Frogs.gstudio)
+str(Frogs.gstudio)
 ```
 
 ### d) Add FrogID
@@ -279,5 +280,12 @@ Frogs.gstudio is a data frame, and we can manipulate like any other data frame. 
 
 ```{r}
 Frogs.gstudio <- data.frame(FrogID=Frogs$FrogID, Frogs.gstudio) 
-as.tibble(Frogs.gstudio)
+str(Frogs.gstudio)
+```
+
+
+```{r message=FALSE, warning=TRUE, include=FALSE}
+detach("package:adegenet", unload=TRUE)
+detach("package:ade4", unload=TRUE)
+detach("package:gstudio", unload=TRUE)
 ```

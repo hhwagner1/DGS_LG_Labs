@@ -37,9 +37,10 @@ This bonus material shows how to:
 All required packages should have been installed already when you installed 'LandGenCourse'.
 
 ```{r message=FALSE, warning=TRUE}
-require(here)
-require(hierfstat)
-require(QstFstComp)
+require(lme4)
+#require(hierfstat)
+#require(QstFstComp)
+#require(EcoGenetics)
 source(system.file("extdata", "supplemental_R_functions.R", 
                             package = "LandGenCourse"))
 
@@ -55,7 +56,7 @@ source(system.file("extdata", "supplemental_R_functions.R",
 
 This Bonus Material assumes that the objects 'WWP' and 'phen' from Week 4 vignette are available in your workspace. The following code checks this and reruns the code from Week 4 vignette if needed. This may take a moment.
 
-```{r}
+```{r message=FALSE, warning=TRUE, include=FALSE}
 if(!exists("WWP")) 
 {
   source(system.file("doc", "Week4_vignette.R", package = "LandGenCourse"))
@@ -94,7 +95,8 @@ colnames(snp_reformat2) <- names(WWP@G)[-which(mono == 1)]
 Let’s examine differentiation for the SNP data using $F_{ST}$. There are a multitude of ways to do this, but we will use the varcomp.glob function from the 'hierfstat' package:
 
 ```{r}
-fst <- varcomp.glob(levels = WWP@S$population, loci = snp_reformat2, diploid = T)
+fst <- hierfstat::varcomp.glob(levels = WWP@S$population, 
+                               loci = snp_reformat2, diploid = T)
 ```
 
 Note you can also explore bootstrapping across loci to get a confidence interval using the boot.vc() function.
@@ -106,14 +108,14 @@ $$F_{pop,tot} = \frac{\sigma^{2}_{pop}}
 
 ### c) Compare $Q_{ST}$ to $F_{ST}$
 
-Now that we have inspected overall genetic differentiation among populations, let’s use the QstFstComp library to formally test whether or not $Q_{ST} > F_{ST}$ for $δ^{13}C$.
+Now that we have inspected overall genetic differentiation among populations, let’s use the 'QstFstComp' library to formally test whether or not $Q_{ST} > F_{ST}$ for $δ^{13}C$.
 
 Note: as this is a permutation test, if you run it several times, the results may change slightly from run to run. 
 
 ```{r}
 snp_reformat3 <- data.frame(population=WWP@S$population, snp_reformat2)
 phen_mod <- phen[,-c(2,4)]
-QstFst_out <- QstFstComp(fst.dat = snp_reformat3, qst.dat = phen_mod, 
+QstFst_out <- QstFstComp::QstFstComp(fst.dat = snp_reformat3, qst.dat = phen_mod, 
                          numpops = nlevels(WWP@S$population), nsim = 10000, 
                          breeding.design = "half.sib.dam", 
                          dam.offspring.relatedness = 0.25, output = "concise")
@@ -157,5 +159,9 @@ ADD THIS PART?
 ADD THIS PART?
 
 
+```{r message=FALSE, warning=TRUE, include=FALSE}
+#detach("package:lme4", unload=TRUE)
+#detach("package:Matrix", unload=TRUE)
+```
 
 
