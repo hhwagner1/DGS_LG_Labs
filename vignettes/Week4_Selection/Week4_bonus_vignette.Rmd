@@ -56,25 +56,22 @@ if(!dir.exists(paste0(here(),"/data"))) dir.create(paste0(here(),"/data"))
 
 ### a) Import and check SNP data 
 
-First, we need to import the SNP data, and also recreate the phenotypic and environmental data (Week 4).
+This code assumes that you have saved the 'ecogen' object 'WWP' from the Week 4 vignette. Here we load it again. We will also need the seedling-level phenotypic data 'phen' again.
 
 ```{r}
-snp <- read.delim(paste0(here(),"/data/WWP_SNP_genotypes.txt"), 
-                  sep = "\t", header = T)
+load(paste0(here(), "/data/WWP.RData"))
+
 phen <- read.delim(paste0(here(),"/data/WWP_phenotype_data.txt"), 
                    sep = "\t", header = T)
-env <- read.delim(paste0(here(),"/data/WWP_environmental_data.txt"), 
-                  sep = "\t", header = T)
-env2 <- data.frame(matrix(nrow=nrow(env), ncol=ncol(env)))
-colnames(env2) <- colnames(env)
-env2[,c(1:2)] <- env[,c(1:2)]
-for(i in 3:ncol(env2)) {env2[,i] <- scale(env[,i], center = T, scale = T)}
 ```
 
-Now, we need to convert the format of the SNP genotypes to FSTAT format for use in hierfstat. Please use the 'hierfstat_convert' function from those provided to you in the file named "supplemental_R_functions.R":
+Now, we need to convert the format of the SNP genotypes to FSTAT format for use in hierfstat. Please use the 'hierfstat_convert' function from those provided to you in the file named "supplemental_R_functions.R".
+
+Note: the function expects some identifier variables, hence we add the columns from the structure slot 'WWP@S' at the beginning of the data frame with the SNPs, an declare those initial columns as 'ids'.
 
 ```{r}
-snp_reformat <- hierfstat_convert(snp = snp, ids = c(1,2))
+snp_reformat <- hierfstat_convert(snp = data.frame(WWP@S,WWP@G), 
+                                  ids = c(1:ncol(WWP@S)))
 ```
 
 Let’s check for weird artifacts. Sometimes, for technical molecular biology reasons, a SNP in a data file turns out to be monomorphic (i.e. it has no variation). We can check this using:
@@ -92,9 +89,7 @@ Now, we need to add names to the SNPs that are renaming and create the populatio
 
 
 ```{r}
-colnames(snp_reformat2) <- colnames(snp)[3:ncol(snp)][-which(mono == 1)]
-pop_ids <- data.frame(matrix(snp[,2], nrow=nrow(snp), ncol = 1))
-colnames(pop_ids) <- c("population")
+colnames(snp_reformat2) <- names(WWP@G)[-which(mono == 1)]
 ```
 
 ### b) Estimate global $F_{ST}$ 
@@ -102,7 +97,7 @@ colnames(pop_ids) <- c("population")
 Let’s examine differentiation for the SNP data using $F_{ST}$. There are a multitude of ways to do this, but we will use the varcomp.glob function from the 'hierfstat' package:
 
 ```{r}
-fst <- varcomp.glob(levels = pop_ids, loci = snp_reformat2, diploid = T)
+fst <- varcomp.glob(levels = WWP@S$population, loci = snp_reformat2, diploid = T)
 ```
 
 Note you can also explore bootstrapping across loci to get a confidence interval using the boot.vc() function.
@@ -116,11 +111,13 @@ $$F_{pop,tot} = \frac{\sigma^{2}_{pop}}
 
 Now that we have inspected overall genetic differentiation among populations, let’s use the QstFstComp library to formally test whether or not $Q_{ST} > F_{ST}$ for $δ^{13}C$.
 
+Note: as this is a permutation test, if you run it several times, the results may change slightly from run to run. 
+
 ```{r}
+snp_reformat3 <- data.frame(population=WWP@S$population, snp_reformat2)
 phen_mod <- phen[,-c(2,4)]
-snp_reformat3 <- cbind(snp[,2], snp_reformat2); colnames(snp_reformat3)[1] <- c("population")
 QstFst_out <- QstFstComp(fst.dat = snp_reformat3, qst.dat = phen_mod, 
-                         numpops = 10, nsim = 10000, 
+                         numpops = nlevels(WWP@S$population), nsim = 10000, 
                          breeding.design = "half.sib.dam", 
                          dam.offspring.relatedness = 0.25, output = "concise")
 QstFst_out
@@ -154,11 +151,11 @@ plot(het_out, fst_snp)
 plot(het_out/(1-fst_snp), fst_snp)
 ```
 
-### c) Test for $F_{ST}$ outlier loci
+### c) Test for $F_{ST}$ outlier loci (TO BE DISCUSSED)
 
 ADD THIS PART?
 
-## 4. Test association between trait and genetic data
+## 4. Test association between trait and genetic data (TO BE DISCUSSED)
 
 ADD THIS PART?
 

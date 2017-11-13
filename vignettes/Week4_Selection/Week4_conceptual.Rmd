@@ -43,7 +43,7 @@ require(here)
 require(LandGenCourse)
 require(lme4)
 require(car)
-#require(EcoGenetics)
+require(EcoGenetics)
 require(tibble)
 require(hierfstat)
 require(QstFstComp)
@@ -203,9 +203,27 @@ boxplot(qst_boot_out); abline(h = qst, col = "red")
 - *Is this consistent with the AIC results from Part 1?* 
 - *Is it meaningful that the red line is less similar to the mean (or median) of the bootstrap distribution as compared to $h^2$?*
 
-### c) Trait correlation with environment
+### c) Trait correlation with environment (TO BE DISCUSSED: UPDATE?)
 
-Finally, let's test for correlations between genetic values of $δ^{13}C$ and environmental data. This output below summarizes three different regression models that model the trait $δ^{13}C$ as a function of a number of environmental variables. These include spatial coordinates (longitude, latitude), elevation, and several bioclimatic variables:
+```{r, echo=FALSE}
+snp <- read.delim(paste0(here(),"/data/WWP_SNP_genotypes.txt"), 
+                  sep = "\t", header = T)
+               
+env <- read.delim(paste0(here(),"/data/WWP_environmental_data.txt"), 
+                  sep = "\t", header = T)
+trait <- mod3_all_eff
+names(trait)[1] <- "d13c"
+
+row.names(snp) <- snp$family   
+row.names(env) <- env$family
+trait$family <- sapply(strsplit(row.names(trait),":"), 
+                              function(ls) ls[[1]])
+row.names(trait) <- trait$family
+
+WWP <- ecogen(XY = env[,3:4], P = trait, G = snp[,-c(1:2)], E = env[,-c(1:4)], S = env[,1:2], order.G = FALSE)
+```
+
+Finally, let's test for correlations between genetic values of $δ^{13}C$ and environmental data. The output below shows the correlation matrix for trait $δ^{13}C$, spatial coordinates (longitude, latitude) and the following bioclimatic variables:
 
 - **max_rad**: maximum solar radiation
 - **tmax_july**: July maximum temperature
@@ -214,51 +232,62 @@ Finally, let's test for correlations between genetic values of $δ^{13}C$ and en
 - **gdd_aug**: growing degree days in August (i.e, temperature > 10C)
 - **AWS050**: available water supply (soil property)
 
-Here we fit three alternative models, accounting ('conditioning') for one group of variables while estimating the effect of another group of variables: 
-
-- Model 1: effects of geography and climate
-- Model 2: effect of climate, conditioned on geography
-- Model 3: effect of geography, conditioned on climate
-
 ```{r, echo=FALSE}
-env <- read.delim(paste0(here(),"/data/WWP_environmental_data.txt"), 
-                  sep = "\t", header = T)
-env2 <- data.frame(matrix(nrow=nrow(env), ncol=ncol(env)))
-colnames(env2) <- colnames(env)
-env2[,c(1:2)] <- env[,c(1:2)]
-for(i in 3:ncol(env2)) {env2[,i] <- scale(env[,i], center = T, scale = T)}
-
-phen_env <- cbind(mod3_all_eff[,1], env2[,c(3:11)])
-colnames(phen_env) <- c("d13c", colnames(env2)[3:11])
-mod1_env <- lm(d13c ~ longitude + latitude + elev + max_rad + tmax_july + 
-                 tmin_jan + ann_ppt + gdd_aug + AWS050, data = phen_env)
-cat("\n", "Model 1: geography and climate", "\n")
-summary(mod1_env)
+phen_env <- data.frame(d13c=scale(WWP@P[,1]), scale(WWP@XY), scale(WWP@E))
+round(cor(phen_env), 2)
 ```
-
-```{r, echo=FALSE}
-res_geog <- residuals(lm(d13c ~ longitude + latitude, data = phen_env))
-phen_env_mod2 <- cbind(res_geog, env2[,5:11])
-mod2_env <- lm(d13c ~ elev + max_rad + tmax_july + tmin_jan + ann_ppt + gdd_aug + AWS050, data = phen_env)
-cat("\n", "Model 2: climate, conditioned on geography", "\n")
-summary(mod2_env)
-```
-
-```{r, echo=FALSE}
-res_clim <- residuals(lm(d13c ~ elev + max_rad + tmax_july + tmin_jan + ann_ppt + gdd_aug + AWS050, data = phen_env))
-phen_env_mod3 <- cbind(res_clim, env2[,c(3:4)]); colnames(phen_env_mod3) <- c("d13c", "longitude", "latitude")
-mod3_env <- lm(d13c ~ longitude + latitude, data = phen_env_mod3)
-cat("\n", "Model 3: geography, conditioned on climate", "\n")
-summary(mod3_env)
-```
-
-We can now assess the impact of climate on the genetic values of $δ^{13}C$. Consider the output from the three models. Note that the environmental variables were standardized, which means that we can directly compare their effects from the slope estimates. 
 
 **Question 8**:
 
-- *Start with Model 1. Is this multiple regression model statistically significant? If so, why?* 
-- *Which variables provide the largest effects (use the column labeled 'Estimate', which is the partial regression coefficient)?* 
-- *Do the same sort of inspection for Model 2 & 3. What can you conclude?*
+- *Which site variables show the strongest correlation with the trait?*
+- *Which site variables are strongly correlated with each other?* 
+
+The multiple regression model below shows us the effect of each variable on $δ^{13}C$, given all other variables in the model. Because the environmental variables were standardized, we can directly compare their effects from the slope estimates.  
+
+```{r, echo=FALSE}
+mod1_env <- lm(d13c ~ longitude + latitude + elev + max_rad + tmax_july + 
+                 tmin_jan + ann_ppt + gdd_aug + AWS050, data = phen_env)
+summary(mod1_env)
+```
+
+
+These estimates and p-values are based on type II sums of squares. This means that for each predictor, they are estimated as if it was added last to the model, thus accounting for the effect of all other variables in the model. As a result, the estimated slope coefficients 'Estimate', and their p-values 'Pr(>|t|)' may differ from the results of a simple regression analysis (with a single predictor in each model) due to the correlation among predictor variables.
+
+**Question 9**:
+
+- *Is this multiple regression model statistically significant? If so, why?*
+- *Which variables have a statistically significant association with the trait, given all other variables in the model?*
+- *Which variables have the strongest association (use the column labeled 'Estimate', which is the partial regression coefficient)? Is this consistent with the correlation results?* 
+
+What is the relative contribution of climate vs. geography to variation in the trait $δ^{13}C$? This can be assessed with variation partitioning: 
+
+```{r, echo=FALSE}
+mod <- vegan::varpart(WWP@P$d13c, WWP@E, WWP@XY, transfo="standardize")
+mod
+```
+
+The partition table lists the size of different fractions of variance. Interpretation should be based on adjusted $R^2$ values. Note that negative $R^2$ values should be interpreted as zero. 
+
+- **[a+b]**: percent of variance in trait that can be explained by climate.
+- **[b+c]**: percent of variance explained by geography.
+- **[a+b+c]**: percent of variance explained by climate and/or geography.
+- **[a]**: percent of variance explained only by climate, unrelated to geography.
+- **[b]**: percent of variance shared by climate and geography. 
+- **[a]**: percent of variance explained only by geography, unrelated to climate.
+
+The figure is a graphical representation of the fractions. Here, X1 is the set of bioclimatic variables ('climate'), and X2 is the spatial coordinates ('geography'). 
+
+```{r, echo=FALSE}
+par(mar=c(1, 1, 1, 1))
+plot(mod)
+```
+
+**Question 10**: Interpret the partition table and the figure.
+
+- *How much of the variance in trait $δ^{13}C$ can be explained by climate and geography, in total? Do you think this is a large effect or not? Why?*
+- *What is the relative importance of climate vs. geography?*
+- *What does geography represent biologically?*
+- *To what degree are climate and geography confounded in this example?*
 
 ## Part 3: Compare Q_{ST} to F_{ST} 
 
@@ -316,12 +345,12 @@ plot(het_out, fst_snp)
 plot(het_out/(1-fst_snp), fst_snp)
 ```
 
-**Question 9**:
+**Question 11**:
 
-- Do any SNPs show an unusual $F_{ST}$ value?
-- If so, what could this mean?
+- *Do any SNPs show an unusual $F_{ST}$ value?*
+- *If so, what could this mean?*
 
-### c) Compare Q_{ST} to F_{ST}
+### c) Compare $Q_{ST}$ to $F_{ST}$
 
 Now that we have inspected overall genetic differentiation among populations, let’s test whether or not $Q_{ST} > F_{ST}$ for $δ^{13}C$. The output below lists three p-values, each corresponding to a different alternative hypothesis $H_A$:
 
@@ -336,7 +365,7 @@ QstFst_out <- QstFstComp(fst.dat = snp_reformat3, qst.dat = phen_mod, numpops = 
 QstFst_out[[3]]
 ```
 
-**Question 10**:
+**Question 12**:
 
-- Is $Q_{ST} > F_{ST}$? 
-- What does this mean biologically? 
+- *Is $Q_{ST} > F_{ST}$?* 
+- *What does this mean biologically?* 
