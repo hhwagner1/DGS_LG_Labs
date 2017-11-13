@@ -37,20 +37,17 @@ We thus have three types of data:
 - SNP genotypes for all 157 trees sampled in the field 
 
 ```{r message=FALSE, warning=TRUE, echo=FALSE}
-
-#devtools::install_github("krlmlr/here")
 require(here)
 require(LandGenCourse)
 require(lme4)
 require(car)
 require(EcoGenetics)
 require(tibble)
+require(vegan)
 require(hierfstat)
 require(QstFstComp)
-
-source(paste0(here(),"/data/supplemental_R_functions.R"))
-
-if(!dir.exists(paste0(here(),"/data"))) dir.create(paste0(here(),"/data"))
+source(system.file("extdata", "supplemental_R_functions.R", 
+                            package = "LandGenCourse"))
 ```
 
 ## Part 1: Estimate genetic values for an observed phenotypic trait
@@ -60,9 +57,8 @@ if(!dir.exists(paste0(here(),"/data"))) dir.create(paste0(here(),"/data"))
 **Goals**: The goal for this part is to model $δ^{13}C$ measurements of seedlings as a combined effect of family (mother tree) and population (where mothers are nested within populations). Also included is an experimental treatment known as “block”. In a common garden, seedlings from the same maternal tree are randomized among blocks to avoid the influence of micro-environmental variation on expression of phenotypic traits.
 
 ```{r, echo=FALSE}
-phen <- read.delim(paste0(here(),"/data/WWP_phenotype_data.txt"), 
-                   sep = "\t", header = T)
-#as.tibble(phen)
+phen <- read.delim(system.file("extdata", "WWP_phenotype_data.txt", 
+                            package = "LandGenCourse"), sep = "\t", header = T)
 ```
 
 We will compare three models (all models include a fixed effect of block): 
@@ -203,14 +199,14 @@ boxplot(qst_boot_out); abline(h = qst, col = "red")
 - *Is this consistent with the AIC results from Part 1?* 
 - *Is it meaningful that the red line is less similar to the mean (or median) of the bootstrap distribution as compared to $h^2$?*
 
-### c) Trait correlation with environment (TO BE DISCUSSED: UPDATE?)
+### c) Trait correlation with environment
 
 ```{r, echo=FALSE}
-snp <- read.delim(paste0(here(),"/data/WWP_SNP_genotypes.txt"), 
-                  sep = "\t", header = T)
+snp <- read.delim(system.file("extdata", "WWP_SNP_genotypes.txt", 
+                            package = "LandGenCourse"), sep = "\t", header = T)
                
-env <- read.delim(paste0(here(),"/data/WWP_environmental_data.txt"), 
-                  sep = "\t", header = T)
+env <- read.delim(system.file("extdata", "WWP_environmental_data.txt", 
+                            package = "LandGenCourse"),sep = "\t", header = T)
 trait <- mod3_all_eff
 names(trait)[1] <- "d13c"
 
@@ -222,6 +218,7 @@ row.names(trait) <- trait$family
 
 WWP <- ecogen(XY = env[,3:4], P = trait, G = snp[,-c(1:2)], E = env[,-c(1:4)], S = env[,1:2], order.G = FALSE)
 ```
+
 
 Finally, let's test for correlations between genetic values of $δ^{13}C$ and environmental data. The output below shows the correlation matrix for trait $δ^{13}C$, spatial coordinates (longitude, latitude) and the following bioclimatic variables:
 
@@ -289,7 +286,7 @@ plot(mod)
 - *What does geography represent biologically?*
 - *To what degree are climate and geography confounded in this example?*
 
-## Part 3: Compare Q_{ST} to F_{ST} 
+## Part 4: Compare $Q_{ST}$ to $F_{ST}$ 
 
 **Motivation**: Now that we have shown that genetic variation for $δ^{13}C$ within populations is significantly greater than zero (i.e. $h^2 > 0$), that differentiation for $δ^{13}C$ is statistically greater than zero (i.e. $Q_{ST} > 0$), and that climate, and to a lesser degree geography, is correlated with $δ^{13}C$ values, we can formally test whether or not differentiation for $δ^{13}C$ is unexplainable due to neutral processes such as genetic drift and gene flow. 
 
@@ -298,19 +295,8 @@ The general idea is use a set of genetic markers we think primarily reflects neu
 **Goals**: The goal for this part of the laboratory is to test the hypothesis that $Q_{ST}$ is greater than $F_{ST}$. 
 
 ```{r, echo=FALSE}
-snp <- read.delim(paste0(here(),"/data/WWP_SNP_genotypes.txt"), 
-                  sep = "\t", header = T)
-phen <- read.delim(paste0(here(),"/data/WWP_phenotype_data.txt"), 
-                   sep = "\t", header = T)
-env <- read.delim(paste0(here(),"/data/WWP_environmental_data.txt"), 
-                  sep = "\t", header = T)
-env2 <- data.frame(matrix(nrow=nrow(env), ncol=ncol(env)))
-colnames(env2) <- colnames(env)
-env2[,c(1:2)] <- env[,c(1:2)]
-for(i in 3:ncol(env2)) {env2[,i] <- scale(env[,i], center = T, scale = T)}
-
-snp_reformat <- hierfstat_convert(snp = snp, ids = c(1,2))
-
+snp_reformat <- hierfstat_convert(snp = data.frame(WWP@S,WWP@G), 
+                                  ids = c(1:ncol(WWP@S)))
 mono <- numeric(ncol(snp_reformat))
 for (i in 1:ncol(snp_reformat)) 
 {
@@ -318,16 +304,15 @@ for (i in 1:ncol(snp_reformat))
 }
 snp_reformat2 <- snp_reformat[,-which(mono == 1)]
 
-colnames(snp_reformat2) <- colnames(snp)[3:ncol(snp)][-which(mono == 1)]
-pop_ids <- data.frame(matrix(snp[,2], nrow=nrow(snp), ncol = 1)); colnames(pop_ids) <- c("population")
+colnames(snp_reformat2) <- names(WWP@G)[-which(mono == 1)]
 ```
 
-### a) Estimate F_{ST} from SNP data
+### a) Estimate $F_{ST}$ from SNP data
 
 Let’s examine differentiation for the SNP data using FST. 
 
 ```{r, echo=FALSE}
-fst <- varcomp.glob(levels = pop_ids, loci = snp_reformat2, diploid = T)
+fst <- varcomp.glob(levels = WWP@S$population, loci = snp_reformat2, diploid = T)
 fst$F
 ```
 
@@ -350,7 +335,7 @@ plot(het_out/(1-fst_snp), fst_snp)
 - *Do any SNPs show an unusual $F_{ST}$ value?*
 - *If so, what could this mean?*
 
-### c) Compare $Q_{ST}$ to $F_{ST}$
+### b) Compare $Q_{ST}$ to $F_{ST}$
 
 Now that we have inspected overall genetic differentiation among populations, let’s test whether or not $Q_{ST} > F_{ST}$ for $δ^{13}C$. The output below lists three p-values, each corresponding to a different alternative hypothesis $H_A$:
 
@@ -359,9 +344,12 @@ Now that we have inspected overall genetic differentiation among populations, le
 - Two-tailed: $H_A: Q_{ST} - F_{ST}$
 
 ```{r, echo=FALSE}
+snp_reformat3 <- data.frame(population=WWP@S$population, snp_reformat2)
 phen_mod <- phen[,-c(2,4)]
-snp_reformat3 <- cbind(snp[,2], snp_reformat2); colnames(snp_reformat3)[1] <- c("population")
-QstFst_out <- QstFstComp(fst.dat = snp_reformat3, qst.dat = phen_mod, numpops = 10, nsim = 10000, breeding.design = "half.sib.dam", dam.offspring.relatedness = 0.25, output = "concise")
+QstFst_out <- QstFstComp(fst.dat = snp_reformat3, qst.dat = phen_mod, 
+                         numpops = nlevels(WWP@S$population), nsim = 10000, 
+                         breeding.design = "half.sib.dam", 
+                         dam.offspring.relatedness = 0.25, output = "concise")
 QstFst_out[[3]]
 ```
 

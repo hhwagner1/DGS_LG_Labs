@@ -50,9 +50,8 @@ require(pegas)
 require(sp)
 require(PopGenReport)
 require(dplyr)
-require(poppr)  
-
-if(!dir.exists("./data")) dir.create("./data")
+require(poppr) 
+require(here)
 ```
 
 ## 2. Basic checking of markers and populations
@@ -147,7 +146,7 @@ And similarly, for each population, the proportion of loci that were out of HWE:
 ```{r}
 Prop.pops.out.of.HWE <- data.frame(Chisq=apply(HWE.test.chisq<alpha, 1, mean), 
            MC=apply(HWE.test.MC<alpha, 1, mean))
-Prop.pops.out.of.HWE             # Type this line again to see results table
+Prop.pops.out.of.HWE             
 ```
 The results suggest that:
 
@@ -258,7 +257,6 @@ Populations with more alleles are resampled to determine the average allelic ric
 
 
 ```{r}
-# rarefied allelic richness
 Richness <- PopGenReport::allel.rich(Frogs.genind, min.alleles = NULL)
 Richness
 ```  
@@ -275,7 +273,6 @@ plot(colMeans(Richness$pop.sizes), Richness$mean.richness,
      xlab="Valid sample size", 
      ylab="Rarefied allelic richness (Ar)")
 abline(lm(Richness$mean.richness ~ colMeans(Richness$pop.sizes)), col="red")
-
 ```
 
 ### b) Observed and expected heterozygosity 
@@ -283,7 +280,6 @@ abline(lm(Richness$mean.richness ~ colMeans(Richness$pop.sizes)), col="red")
 Note: Writing the 'genind' summary into an object 'Sum' allows accessing its attributes by name.
 
 ```{r}
-  # Summarize data
   Sum <- summary(Frogs.genind)
   names(Sum)
 ```
@@ -332,9 +328,14 @@ Frogs.diversity <- data.frame(Pop = names(Hobs.pop),
                               Hexp = Hexp.pop,
                               Ar = Richness$mean.richness)
 Frogs.diversity
+```
 
-save(Frogs.diversity, file = "./data/Frogs.diversity.RData")
-load("./data/Frogs.diversity.RData")
+You can save the R object 'Frogs.diversity' with the code below (need to uncomment by removing the hashtags '#'):
+
+```{r}
+#if(!dir.exists(paste0(here(),"/output"))) dir.create(paste0(here(),"/output"))
+#save(Frogs.diversity, file = paste0(here(),"/output/Frogs.diversity.RData"))
+#load(paste0(here(),"/output/Frogs.diversity.RData"))
 ```
 
 

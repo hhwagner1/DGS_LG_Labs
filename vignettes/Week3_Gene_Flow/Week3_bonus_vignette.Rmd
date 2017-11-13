@@ -49,7 +49,7 @@ require(dplyr)
 require(poppr)       
 require(mmod)
 require(tibble)
-if(!dir.exists("./data")) dir.create("./data")
+require(here)
 ```
 
 ## 2. Add sampling locations and hierarchical structure to genind object
@@ -91,6 +91,7 @@ We first create a data frame 'Frog.sites' that contains the population labels an
 ```{r}
 Frogs.sites <- data.frame(Pop=unique(ralu.loci$Pop),
                                        SiteName=unique(ralu.loci$SiteName))
+Frogs.sites$n <- as.vector(table(ralu.loci$Pop))
 Frogs.sites
 ```
 
@@ -120,16 +121,17 @@ as.tibble(tmp)
 Then we write the latlong coordinates into 'latlong', the UTM coordinates into 'xy', and the site data into 'site' (we can give this one any name).  (We'll look at the result after the next step).
 
 ```{r}
-Frogs.genind@other$latlong <- tmp[,3:4]
-Frogs.genind@other$xy <- tmp[,5:6]
-Frogs.genind@other$site <- tmp[,-c(3:6)]
+Frogs.genind@other$latlong <- tmp[,4:5]
+Frogs.genind@other$xy <- tmp[,6:7]
+Frogs.genind@other$site <- tmp[,-c(3:7)]
 ```
 
-Let's save the complete genind object:
+Optional: save the complete genind object (uncomment lines first):
 
 ```{r}
-save(Frogs.genind, file = "./data/Frogs.genind.RData")
-load("./data/Frogs.genind.RData")
+#if(!dir.exists(paste0(here(),"/output"))) dir.create(paste0(here(),"/output"))
+#save(Frogs.genind, file = paste0(here(),"/output/Frogs.genind.RData"))
+#load(paste0(here(),"/output/Frogs.genind.RData"))
 ```
 
 ### e) Fill 'strata' and 'hierarchy' slots

@@ -48,8 +48,6 @@ We will thus have three types of data:
 All required packages should have been installed already when you installed 'LandGenCourse'.
 
 ```{r message=FALSE, warning=TRUE}
-
-#devtools::install_github("krlmlr/here")
 require(here)
 require(LandGenCourse)
 require(lme4)
@@ -58,9 +56,8 @@ require(EcoGenetics)
 require(tibble)
 require(vegan)
 
-source(paste0(here(),"/data/supplemental_R_functions.R"))
-
-if(!dir.exists(paste0(here(),"/data"))) dir.create(paste0(here(),"/data"))
+source(system.file("extdata", "supplemental_R_functions.R", 
+                            package = "LandGenCourse"))
 ```
 
 ## 2. Estimate genetic values for an observed phenotypic trait
@@ -72,9 +69,9 @@ if(!dir.exists(paste0(here(),"/data"))) dir.create(paste0(here(),"/data"))
 ### a) Import phenytypic data 
 
 ```{r}
-phen <- read.delim(paste0(here(),"/data/WWP_phenotype_data.txt"), 
-                   sep = "\t", header = T)
-as.tibble(phen)
+phen <- read.delim(system.file("extdata", "WWP_phenotype_data.txt", 
+                            package = "LandGenCourse"), sep = "\t", header = T)
+tibble::as.tibble(phen)
 ```
 
 ### b) Fit linear models to phenotypic trait data
@@ -85,9 +82,9 @@ Now,we are ready to fit a series of linear models. We will fit three models in t
 - **mod3**:a LMM with an intercept, a random effect due to family nested within population, and a random effect of population. We will thus be ignoring the plot identifiers. All models will also have a fixed effect of block.
 
 ```{r}
-mod1<-lm(phen$d13c~1+phen$block)
-mod2<-lmer(d13c~1+(1|family)+block,data = phen, REML = F)
-mod3 <- lmer(d13c ~ 1 + (1|population/family) + block, data = phen, REML = F)
+mod1 <- lm(phen$d13c~1+phen$block)
+mod2 <- lme4::lmer(d13c~1+(1|family)+block,data = phen, REML = F)
+mod3 <- lme4::lmer(d13c ~ 1 + (1|population/family) + block, data = phen, REML = F)
 ```
 
 We are now ready to explore each of these models and to look at which model best fits our data. First, you can use the Anova() function in the car library to test the statistical significance of the fixed terms in each mod. This function let's us control the type of sums of squares (SS) being used, here type III sums of squares (see your stats book).
@@ -96,9 +93,9 @@ Note that for modelsl fitted with 'lmer' (models 2 & 3) and with 'REML = F', we 
 
 
 ```{r}
-Anova(mod1, type="III", test.statistic = "F")
-Anova(mod2, type="III", test.statistic = "Chisq")
-Anova(mod3, type="III", test.statistic = "Chisq")
+car::Anova(mod1, type="III", test.statistic = "F")
+car::Anova(mod2, type="III", test.statistic = "Chisq")
+car::Anova(mod3, type="III", test.statistic = "Chisq")
 ```
 Compare the output. What do you conclude about the effect of block in each of the models? Remember this is an experimental treatment, so your conclusion directly addresses whether micro-environmental variation exists in your common garden.
 
@@ -112,7 +109,7 @@ names(aic_vals) <- c("mod1","mod2","mod3")
 aic_vals
 ```
 
-We can express the relative support of each model using Akaike weights. These can be thought of as the conditional probabilities of each model. To do this, we will need to write a few lines of R commands. Luckily for you, I have provided a function named aic_weights that will calculate these for you. This function is located in the "supplemental_R_functions.R" file. Use source("supplemental_R_functions.R") to get these into R.
+We can express the relative support of each model using Akaike weights. These can be thought of as the conditional probabilities of each model. To do this, we will need to write a few lines of R commands. Luckily for you, I have provided a function named aic_weights that will calculate these for you. This function is located in the "supplemental_R_functions.R" file that we have sourced at the beginning. 
 
 ```{r}
 aic_out <- aic_weights(aic_vals)
@@ -125,7 +122,7 @@ Inspect the values in aic_out. They add to one and can be thought of as conditio
 
 Now that we have the best model, let’s use it to calculate the genetic values for each maternal tree for $δ^{13}C$. To do this, we will work directly with the mod3 output from before. What we are after is the value of $δ^{13}C$ for each tree from which we measured $δ^{13}C$ from five of her offspring in the common garden. This is the genetic value and represents the value of $δ^{13}C$ that would result if you knew all the genes and effect sizes of variation within those genes determining variation for this trait (see genetics without molecular markers!).
 
-To get the effects due to family and population, we can use the ranef() function. This function produces estimates for each family and population in a list with named elements ('family' and 'population').
+To get the effects due to family and population, we can use the 'ranef' function from "supplemental_R_functions.R". This function produces estimates for each family and population in a list with named elements ('family' and 'population').
 
 First, let’s get the list we need: 
 
@@ -165,11 +162,11 @@ The 'EcoGenetics' package facilitates the joint storing and spatial analysis of 
 First, we import the snp and environmental data, and write the $δ^{13}C$ estimates into an object 'trait'. 
 
 ```{r}
-snp <- read.delim(paste0(here(),"/data/WWP_SNP_genotypes.txt"), 
-                  sep = "\t", header = T)
+snp <- read.delim(system.file("extdata", "WWP_SNP_genotypes.txt", 
+                            package = "LandGenCourse"), sep = "\t", header = T)
                
-env <- read.delim(paste0(here(),"/data/WWP_environmental_data.txt"), 
-                  sep = "\t", header = T)
+env <- read.delim(system.file("extdata", "WWP_environmental_data.txt", 
+                            package = "LandGenCourse"),sep = "\t", header = T)
 trait <- mod3_all_eff
 names(trait)[1] <- "d13c"
 ```
@@ -195,14 +192,16 @@ Now we can assign different parts of the data to different slots of the ecogen o
 Note: we have only one trait, but ecogen does not accept a data frame with a single column, hence we keep the variable 'family' in there.
 
 ```{r}
-WWP <- ecogen(XY = env[,3:4], P = trait, G = snp[,-c(1:2)], E = env[,-c(1:4)], S = env[,1:2], order.G = FALSE)
+WWP <- EcoGenetics::ecogen(XY = env[,3:4], P = trait, G = snp[,-c(1:2)], 
+                           E = env[,-c(1:4)], S = env[,1:2], order.G = FALSE)
 ```
 
-We can export the 'ecogen' object 'WWP' with the function 'save', and load it again with 'load'.
+We can export the 'ecogen' object 'WWP' to a folder 'output' in your current project folder with the function 'save', and load it again with 'load'. To run the code, remove the hashtags '#' at the beginning of each line (i.e., uncomment the lines). 
 
 ```{r}
-save(WWP, file = paste0(here(), "/data/WWP.RData"))
-load(paste0(here(), "/data/WWP.RData"))
+#if(!dir.exists(paste0(here(),"/output"))) dir.create(paste0(here(),"/output"))
+#save(WWP, file = paste0(here(), "/output/WWP.RData"))
+#load(paste0(here(), "/output/WWP.RData"))
 ```
 
 ## 3. Estimate trait heritability
@@ -239,10 +238,9 @@ do the following using the mod_boot function in "supplemental_R_functions.R". It
 ```{r}
 par(mar=c(1, 1, 1, 1))
 h2_boot_out <- mod_boot(model = mod3, nboot = 1000)
-ci_95 <- quantile(h2_boot_out, probs = c(0.025, 0.50, 0.975)) ### 95% ci.
+ci_95 <- quantile(h2_boot_out, probs = c(0.025, 0.50, 0.975))
 ci_95
 boxplot(h2_boot_out, range=5); abline(h = h2, col = "red") 
-## red line: original h2 estimate for comparison to bootstrap distribution.
 ```
 
 Interpret the numerical 95% confidence intervals 'ci_95' and boxplot with our original $h^2$ estimate (red line: 0.399) for comparison to the bootstrap distribution. 
@@ -273,7 +271,7 @@ Now, we can again look at a confidence interval using parametric bootstrapping. 
 ```{r}
 par(mar=c(1, 1, 1, 1))
 qst_boot_out <- mod_boot_qst(model = mod3, nboot = 1000)
-ci_95_qst <- quantile(qst_boot_out, probs = c(0.025, 0.50, 0.975)) ### 95% ci.
+ci_95_qst <- quantile(qst_boot_out, probs = c(0.025, 0.50, 0.975)) 
 ci_95_qst
 boxplot(qst_boot_out); abline(h = qst, col = "red")
 ```
@@ -350,11 +348,12 @@ First we fit models for all testable fractions (see last column in output above)
 The first argument of 'rda' is the response, the second argument is the set of predictors, and the third is an optional set of predictors that should be used for conditioning (i.e., their effect is accounted for before regressing the response on the second set).
 
 ```{r}
-ab <- anova(vegan::rda(WWP@P$d13c, WWP@E,  transfo="standardize"))
-bc <- anova(vegan::rda(WWP@P$d13c, WWP@XY, transfo="standardize"))
-abc <- anova(vegan::rda(WWP@P$d13c, data.frame(WWP@E, WWP@XY), transfo="standardize"))
-a <- anova(vegan::rda(WWP@P$d13c, WWP@E, WWP@XY, transfo="standardize"))
-b <- anova(vegan::rda(WWP@P$d13c, WWP@XY, WWP@E, transfo="standardize"))
+ab <- vegan::anova.cca(vegan::rda(WWP@P$d13c, WWP@E,  transfo="standardize"))
+bc <- vegan::anova.cca(vegan::rda(WWP@P$d13c, WWP@XY, transfo="standardize"))
+abc <- vegan::anova.cca(vegan::rda(WWP@P$d13c, data.frame(WWP@E, WWP@XY),
+                                   transfo="standardize"))
+a <- vegan::anova.cca(vegan::rda(WWP@P$d13c, WWP@E, WWP@XY, transfo="standardize"))
+b <- vegan::anova.cca(vegan::rda(WWP@P$d13c, WWP@XY, WWP@E, transfo="standardize"))
 ```
 
 Now we can extract the p-values. Looks like all testable fractions are statistically significant!

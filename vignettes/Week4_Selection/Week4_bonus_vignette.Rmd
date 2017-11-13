@@ -37,15 +37,12 @@ This bonus material shows how to:
 All required packages should have been installed already when you installed 'LandGenCourse'.
 
 ```{r message=FALSE, warning=TRUE}
-#devtools::install_github("kjgilbert/QstFstComp")
-#source("http://bioconductor.org/biocLite.R")
-#biocLite("LEA")
 require(here)
 require(hierfstat)
 require(QstFstComp)
-require(LEA)
-source(paste0(here(),"/data/supplemental_R_functions.R"))
-if(!dir.exists(paste0(here(),"/data"))) dir.create(paste0(here(),"/data"))
+source(system.file("extdata", "supplemental_R_functions.R", 
+                            package = "LandGenCourse"))
+
 ```
 
 ## 2. Estimate $F_{ST}$ from SNP data
@@ -56,16 +53,16 @@ if(!dir.exists(paste0(here(),"/data"))) dir.create(paste0(here(),"/data"))
 
 ### a) Import and check SNP data 
 
-This code assumes that you have saved the 'ecogen' object 'WWP' from the Week 4 vignette. Here we load it again. We will also need the seedling-level phenotypic data 'phen' again.
+This Bonus Material assumes that the objects 'WWP' and 'phen' from Week 4 vignette are available in your workspace. The following code checks this and reruns the code from Week 4 vignette if needed. This may take a moment.
 
 ```{r}
-load(paste0(here(), "/data/WWP.RData"))
-
-phen <- read.delim(paste0(here(),"/data/WWP_phenotype_data.txt"), 
-                   sep = "\t", header = T)
+if(!exists("WWP")) 
+{
+  source(system.file("doc", "Week4_vignette.R", package = "LandGenCourse"))
+}
 ```
 
-Now, we need to convert the format of the SNP genotypes to FSTAT format for use in hierfstat. Please use the 'hierfstat_convert' function from those provided to you in the file named "supplemental_R_functions.R".
+First, we need to convert the format of the SNP genotypes to FSTAT format for use in hierfstat. Please use the 'hierfstat_convert' function from those provided to you in the file named "supplemental_R_functions.R".
 
 Note: the function expects some identifier variables, hence we add the columns from the structure slot 'WWP@S' at the beginning of the data frame with the SNPs, an declare those initial columns as 'ids'.
 
