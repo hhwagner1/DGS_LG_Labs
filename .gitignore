@@ -36,3 +36,20 @@ vignettes/*.pdf
 # Output folders created by vignettes
 vignettes/Week1_Importing_Genetic_Data/data
 vignettes/Week2_Spatial_Data/data
+vignettes/Week3_Gene_Flow/data
+
+
+downloads
+
+# Output folders created by vignettes
+vignettes/Week1_Importing_Genetic_Data/*.html
+vignettes/Week2_Spatial_Data/*.html
+vignettes/Week3_Gene_Flow/*.html
+vignettes/Week3_GravityModels_Lab/*.html
+
+# Expanded zip folders
+vignettes/Week3_Gene_Flow/Lab3_RALU_DGS2016
+vignettes/Week4_Selection/Week4Lab_AdaptiveGenetics
+vignettes/Week13_Network_Analysis/DGS2016_GravityModels_Lab
+
+
