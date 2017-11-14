@@ -18,8 +18,8 @@
 .Rproj.user/
 
 # produced vignettes
-vignettes/*.html
-vignettes/*.pdf
+/vignettes/*.html
+/vignettes/*.pdf
 
 # OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
 .httr-oauth
@@ -34,24 +34,25 @@ vignettes/*.pdf
 .Rproj.user
 
 # Output folders created by vignettes
-vignettes/Week1_Importing_Genetic_Data/data
-vignettes/Week2_Spatial_Data/data
-vignettes/Week3_Gene_Flow/data
+/vignettes/Week1_Importing_Genetic_Data/data
+/vignettes/Week2_Spatial_Data/data
+/vignettes/Week3_Gene_Flow/data
 
 
 downloads
 
 # Output folders created by vignettes
 *.html
-vignettes/Week1_Importing_Genetic_Data/*.html
-vignettes/Week2_Spatial_Data/*.html
-vignettes/Week3_Gene_Flow/*.html
-vignettes/Week3_GravityModels_Lab/*.html
-vignettes/Week1_Importing_Genetic_Data/Week1_vignette.html
+/vignettes/Week1_Importing_Genetic_Data/*.html
+/vignettes/Week2_Spatial_Data/*.html
+/vignettes/Week3_Gene_Flow/*.html
+/vignettes/Week3_GravityModels_Lab/*.html
+/vignettes/Week1_Importing_Genetic_Data/Week1_vignette.html
 
 # Expanded zip folders
-vignettes/Week3_Gene_Flow/Lab3_RALU_DGS2016
-vignettes/Week4_Selection/Week4Lab_AdaptiveGenetics
-vignettes/Week13_Network_Analysis/DGS2016_GravityModels_Lab
+/vignettes/Week3_Gene_Flow/Lab3_RALU_DGS2016
+/vignettes/Week4_Selection/Week4Lab_AdaptiveGenetics
+/vignettes/Week13_Network_Analysis/DGS2016_GravityModels_Lab
 
-
+# output folder
+/output
