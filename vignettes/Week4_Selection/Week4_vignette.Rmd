@@ -54,6 +54,7 @@ require(lme4)
 #require(EcoGenetics)
 require(tibble)
 #require(vegan)
+require(gstudio)
 
 source(system.file("extdata", "supplemental_R_functions.R", 
                             package = "LandGenCourse"))
@@ -152,57 +153,6 @@ head(mod3_all_eff)
 
 The values held in the object mod3_all_eff are now the genetic effects of each maternal tree. In other words, this is the phenotypic trait value for the maternal tree for $δ^{13}C$. Note that we did not measure the maternal tree, but inferred her phenotype from her offspring in a common environment.
 
-### e) Combine trait, genotypic and environmental data
-
-Now that we have an estimate of the trait for each family (i.e., mother tree), we can add it to the dataset to facilitate their joint analysis.
-
-The 'EcoGenetics' package facilitates the joint storing and spatial analysis of phenotypic, genotypic, spatial and environmental data. 
-
-First, we import the snp and environmental data, and write the $δ^{13}C$ estimates into an object 'trait'. 
-
-```{r}
-snp <- read.delim(system.file("extdata", "WWP_SNP_genotypes.txt", 
-                            package = "LandGenCourse"), sep = "\t", header = T)
-               
-env <- read.delim(system.file("extdata", "WWP_environmental_data.txt", 
-                            package = "LandGenCourse"),sep = "\t", header = T)
-trait <- mod3_all_eff
-names(trait)[1] <- "d13c"
-```
-
-For import into an 'ecogen' object, all tables should have matching row numbers as identifiers. Here the identifier is the variable 'family', hence we use it to create new row names. For 'trait', we use function 'strsplit' to extract the variable 'family' as the first part of the existing row names (before the colon ':').
-
-```{r}
-row.names(snp) <- snp$family   
-row.names(env) <- env$family
-trait$family <- sapply(strsplit(row.names(trait),":"), 
-                              function(ls) ls[[1]])
-row.names(trait) <- trait$family
-```
-
-Now we can assign different parts of the data to different slots of the ecogen object:
-
-- XY: data frame with spatial coordinates (here: longitude, latitude)
-- P: data frame with phenotypic traits (here: d13C, family)
-- G: data frame with genotypic data (here: 164 SNPs)
-- E: data frame with environmental data (here: 7 bioclimatic etc. site variables)
-- S: data frame with structure (hierarchical sampling levels)
-
-Note: we have only one trait, but ecogen does not accept a data frame with a single column, hence we keep the variable 'family' in there.
-
-```{r}
-WWP <- EcoGenetics::ecogen(XY = env[,3:4], P = trait, G = snp[,-c(1:2)], 
-                           E = env[,-c(1:4)], S = env[,1:2], order.G = FALSE)
-```
-
-We can export the 'ecogen' object 'WWP' to a folder 'output' in your current project folder with the function 'save', and load it again with 'load'. To run the code, remove the hashtags '#' at the beginning of each line (i.e., uncomment the lines). 
-
-```{r}
-#require(here)
-#if(!dir.exists(paste0(here(),"/output"))) dir.create(paste0(here(),"/output"))
-#save(WWP, file = paste0(here(), "/output/WWP.RData"))
-#load(paste0(here(), "/output/WWP.RData"))
-```
 
 ## 3. Estimate trait heritability
 
@@ -278,7 +228,137 @@ boxplot(qst_boot_out); abline(h = qst, col = "red")
 
 Interpret the results. Do you think that $Q_{ST}$ is statistically different than zero? Is this consistent with the AIC results from Part 1? Is it meaningful that the red line is less similar to the mean (or median) of the bootstrap distribution as compared to $h^2$?
 
-## 4. Estimate trait correlation with environment
+## 4. Combine trait, genotypic and environmental data
+
+Now that we have an estimate of the trait for each family (i.e., mother tree), we can add it to the dataset to facilitate their joint analysis.
+
+The 'EcoGenetics' package facilitates the joint storing and spatial analysis of phenotypic, genotypic, spatial and environmental data. 
+
+### a) Import genetic and environmental data
+
+Let's import the SNP data ...
+
+```{r}
+snp <- read.delim(system.file("extdata", "WWP_SNP_genotypes.txt", 
+                            package = "LandGenCourse"), sep = "\t", header = T)
+snp[1:3, 1:5]
+```
+
+... and the environmental data... 
+
+```{r}
+env <- read.delim(system.file("extdata", "WWP_environmental_data.txt", 
+                            package = "LandGenCourse"),sep = "\t", header = T)
+as.tibble(env)
+```
+
+and write the $δ^{13}C$ estimates into an object 'trait'. 
+
+```{r}
+trait <- mod3_all_eff
+names(trait)[1] <- "d13c"
+```
+
+For import into an 'ecogen' object, all tables should have matching row numbers as identifiers. Here the identifier is the variable 'family', hence we use it to create new row names. For 'trait', we use function 'strsplit' to extract the variable 'trait.family' from the first part of the existing row names (before the colon ':'). 
+
+An additional problem arises because we have a single trait column, but the function 'ecogen' does not allow importing a single vector. Hence we declare it a data frame and specify its row names.
+
+```{r}
+row.names(snp) <- snp$family 
+row.names(env) <- env$family
+trait.family <- sapply(strsplit(row.names(trait),":"), 
+                              function(ls) ls[[1]])
+trait <- data.frame(d13c = trait$d13c)
+row.names(trait) <- trait.family
+```
+
+### b) Discard monomorphic SNPs
+
+Some of the SNPs are monomorphic, and we'll want to discard them first. Here we remove the identifier variables in the first two columns, then identify the monomorphic loci. The second line tabulates the genotypes for each locus (e.g., the number of AA, AC, and CC), and checks whether the number of genotypes equals 1 (TRUE) or not (FALSE). The third line retains the columns with 'mono=FALSE' and discards the monomorphic loci. The number of SNPs is thus reduced from 164 to 160.
+
+```{r}
+snp <- snp[,-c(1:2)]
+dim(snp)
+mono <- sapply(snp, function(ls) length(table(ls))) == 1
+snp <- snp[, mono==FALSE]
+dim(snp)
+```
+
+### c) Create 'ecogen' object 
+
+Now we can assign different parts of the data to different slots of the ecogen object:
+
+- **XY**: data frame with spatial coordinates (here: longitude, latitude)
+- **P**: data frame with phenotypic traits (here: d13C, family)
+- **G**: data frame with genotypic data (here: 164 SNPs)
+- **A**: generated automatically from G: matrix of allele counts (codominant markers only)
+- **E**: data frame with environmental data (here: 7 bioclimatic etc. site variables)
+- **S**: data frame with structure (hierarchical sampling levels)
+- **C**: custom data frame (optional)
+- **OUT**: will be used for output generated by methods from package 'EcoGenetics'
+
+```{r}
+WWP <- EcoGenetics::ecogen(XY = env[,3:4], P = trait, G = snp, E = env[,-c(1:4)], 
+                           S = env[,1:2], order.G = FALSE, missing = "NA")
+WWP
+```
+Let's look at the slots @G and @A, which hold two different representations of the SNP markers. 
+
+```{r}
+WWP@G[1:5, 1:2]
+WWP@A[1:5, 1:4]
+```
+
+In slot @A, each column is one SNP allele, hence we have two columns per SNP, just like the slot @tab in a 'genind' object. 
+
+### d) Export options 
+
+Indeed, we can easily convert from an 'ecogen' object to a 'genind' object. The spatial coordinates are not exported automatically though, here we add them manually to the @other slot. 
+
+```{r}
+WWP.genind <- EcoGenetics::ecogen2genind(WWP)
+WWP.genind@other$latlong <- WWP@XY
+WWP.genind
+```
+
+Note that the strata object has been populated with 'population' and 'family'. Import from 'genind' to 'ecogen':
+
+THIS DOES NOT WORK, FIX BUG IN 'genind2ecogen'.
+
+```{r}
+WWP1 <-EcoGenetics::genind2ecogen(WWP.genind)
+WWP1@XY <- WWP.genind@other$latlong
+WWP1
+```
+
+Conversion functions exist also for gstudio, hierfstat, Genepop, SPAGeDi and Geneland formats. Which means that you can convert from one of these to another via an 'ecogen' object! If you've ever tried to do a pop gen analysis, you'll appreciate this.
+
+Note: these functions need the corresponding package to be loaded, which happens automatically for 'adegenet' but 'gstudio' may need to be loaded explicitly. Also, not all slots are exported and imported automatically. Here we won't worry about the trait or environmental data.
+
+```{r}
+require(gstudio)
+WWP.gstudio <- EcoGenetics::ecogen2gstudio(WWP)
+as.tibble(WWP.gstudio[,1:8])             #  Show first 8 columns
+```
+ 
+When importing from 'gstudio' format to 'ecogen', we can specify the variables that hold the coordinates, ID, and strata ('struct').
+
+```{r}
+WWP2 <- EcoGenetics::gstudio2ecogen(WWP.gstudio, lat = "Latitude", lon = "Longitude", 
+                                    ID = "ID", struct = c("population", "family"))
+WWP2
+```
+
+We can export the 'ecogen' object 'WWP' to a folder 'output' in your current project folder with the function 'save', and load it again with 'load'. To run the code, remove the hashtags '#' at the beginning of each line (i.e., uncomment the lines). 
+
+```{r}
+#require(here)
+#if(!dir.exists(paste0(here(),"/output"))) dir.create(paste0(here(),"/output"))
+#save(WWP, file = paste0(here(), "/output/WWP.RData"))
+#load(paste0(here(), "/output/WWP.RData"))
+```
+
+## 5. Estimate trait correlation with environment
 
 The last thing we want to do in this part of the lab is to test for correlations
 between genetic values of $δ^{13}C$ and environmental data.
@@ -366,5 +446,8 @@ c(ab=ab$"Pr(>F)"[1], bc=bc$"Pr(>F)"[1], abc=abc$"Pr(>F)"[1],
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 detach("package:lme4", unload=TRUE)
 detach("package:Matrix", unload=TRUE)
+detach("package:adegenet", unload=TRUE)
+detach("package:ade4", unload=TRUE)
+detach("package:gstudio", unload=TRUE)
 ```
 
