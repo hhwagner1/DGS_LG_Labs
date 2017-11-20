@@ -67,6 +67,7 @@ First, we need to convert the format of the SNP genotypes to FSTAT format for us
 
 Note: the function expects some identifier variables, hence we add the columns from the structure slot 'WWP@S' at the beginning of the data frame with the SNPs, an declare those initial columns as 'ids'.
 
+
 NOTE: SHOULD BE ABLE TO REPLACE THIS BY 'ecogen2hierfstat'.
 
 ```{r}
@@ -77,15 +78,18 @@ snp_reformat <- hierfstat_convert(snp = data.frame(WWP@S,WWP@G),
 Let’s check for weird artifacts. Sometimes, for technical molecular biology reasons, a SNP in a data file turns out to be monomorphic (i.e. it has no variation). We can check this using:
 
 ```{r}
+
 mono <- numeric(ncol(snp_reformat))   # Creates a vector of '0' values
+
 for (i in 1:ncol(snp_reformat)) 
 {
   mono[i] <- length(table(snp_reformat[,i]))
 }
 snp_reformat2 <- snp_reformat[,-which(mono == 1)]
 
+
 # WWP@G <- snp_reformat2
-```
+
 
 Now, we need to add names to the SNPs that are renaming and create the population identifiers for hierfstat. We can do this using the following:
 
@@ -122,7 +126,9 @@ phen_mod <- phen[,-c(2,4)]
 QstFst_out <- QstFstComp::QstFstComp(fst.dat = snp_reformat3, qst.dat = phen_mod, 
                          numpops = nlevels(WWP@S$population), nsim = 10000, 
                          breeding.design = "half.sib.dam", 
-                         dam.offspring.relatedness = 0.25, output = "concise")
+
+                         dam.offspring.relatedness = 0.25, output = "concise_nowrite")
+
 QstFst_out
 ```
 
