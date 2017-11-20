@@ -229,7 +229,34 @@ Pairwise.fst <- hierfstat::pairwise.fst(Frogs.genind, pop = NULL,
                                         res.type = c("dist"))
 ```
 
-### d) Export distance matrices
+### d) More distances with gstudio
+
+```{r}
+# Frogs.ecogen <- EcoGenetics::genind2ecogen(Frogs.genind)
+# Frogs.ecogen@S <- EcoGenetics::Frogs.genind@strata
+# Frogs.gstudio <- EcoGenetics::ecogen2gstudio(Frogs.ecogen)
+# Need to change variable names from 'pop' to 'Population' in code below.
+
+write.table(adegenet::genind2df(Frogs.genind, sep=":"), "Frogs.tmp.csv", sep=",")
+Frogs.gstudio <- gstudio::read_population("Frogs.tmp.csv", type="separated", 
+                                          locus.columns=c(2:9))
+
+GD.ind.AMOVA.gstudio <- gstudio::genetic_distance(Frogs.gstudio, mode = "AMOVA")
+GD.pop.Euclidean.gstudio <-gstudio::genetic_distance(Frogs.gstudio, mode = "Euclidean",
+                                             stratum="pop")
+GD.pop.cGD.gstudio <-gstudio::genetic_distance(Frogs.gstudio, mode = "cGD",
+                                             stratum="pop")
+GD.pop.Nei.gstudio <-gstudio::genetic_distance(Frogs.gstudio, mode = "Nei", 
+                                       stratum="pop")
+GD.pop.Dps.gstudio <-gstudio::genetic_distance(Frogs.gstudio, mode = "Dps", 
+                                       stratum="pop")
+GD.pop.Jaccard.gstudio <-gstudio::genetic_distance(Frogs.gstudio, mode = "Jaccard",
+                                             stratum="pop")
+
+```
+
+
+### e) Export distance matrices
 
 We'll need the genetic distance matrices again in later labs, so let's export them. Adding the package name to each matrix name helps keeping track of methods used.
 
@@ -238,19 +265,31 @@ Technically speaking, the two proportion of shared alleles matrices contain simi
 Note: additional distance measures are available in the package 'gstudio'. Specifically, we will use conditional genetic distance later in the course.
 
 ```{r}
-GD.ind <- list(smouse.PopGenReport = GD.ind.smouse,
-               propShared.adegent = 1 - GD.ind.propShared)
+GD.ind <- list(Smouse.PopGenReport = GD.ind.smouse,
+               propShared.adegenet = as.dist(1 - GD.ind.propShared),
+               Amova.gstudio = as.dist(GD.ind.AMOVA.gstudio))
+Cor.ind <- cor(Reduce(cbind, GD.ind))
+dimnames(Cor.ind) <- list(names(GD.ind), names(GD.ind))
+round(Cor.ind[,1:2], 2)
 
 GD.pop <- list(pairwiseFst.hierfstat = Pairwise.fst,
                propShared.PopGenReport = 1 - GD.pop.propShared,
                Nei.adegenet = GD.pop.Nei,
                Edwards.adegenet = GD.pop.Edwards,
-               Reynolds.adegent = GD.pop.Reynolds,
+               Reynolds.adegenet = GD.pop.Reynolds,
                Rogers.adegenet = GD.pop.Rogers,
-               Provesti.adegent = GD.pop.Provesti,
+               Provesti.adegenet = GD.pop.Provesti,
                Joost.mmod = GD.pop.Joost,
                Hedrick.mmod = GD.pop.Hedrick,
-               Nei.mmod = GD.pop.NeiGst)
+               Nei.mmod = GD.pop.NeiGst,
+               Euclidean.gstudio = as.dist(GD.pop.Euclidean.gstudio),
+               cGD.gstudio = as.dist(GD.pop.cGD.gstudio),
+               Nei.gstudio = as.dist(GD.pop.Nei.gstudio),
+               Dps.gstudio = as.dist(1 - GD.pop.Dps.gstudio),
+               Jaccard.gstudio = as.dist(1 - GD.pop.Jaccard.gstudio))
+Cor.pop <- cor(Reduce(cbind, GD.pop))
+dimnames(Cor.pop) <- list(names(GD.pop), names(GD.pop))
+round(Cor.pop[,1:2], 2)
 ```
 
 round(cor(sapply(GD.ind, function(ls) as.vector(ls))),2)
@@ -313,33 +352,39 @@ Beyond distance effects, we may expect mountain ridges to act as barriers for ge
 Before considering the hierarchical sampling design, let's quantify the overall degree of genetic differentiation among populations using F statistics, specifically Fst. 
 
 ```{r}
-
-# Overall F statistics (hierfstat)
-hierfstat::fstat(Frogs.genind, pop = NULL, fstonly = FALSE)
+cat("F statistics using function 'hierfstat::fstat':", "\n")
+hierfstat::fstat(Frogs.genind)
 ``` 
 How to read this result:
 
 F statistics were developed by Sewall Wright (1943) to evaluate departures from HWE for subdivided populations.
 
-- F (Fixation index): Fixation means increased homozygosity
+- **$F$ (Fixation index)**: Fixation means increased homozygosity
 
-- FIS (Inbreeding coefficient): The probability of uniting gametes relative to gametes drawn
-at random from within a subpopulation (Individual within the Subpopulation)
+- **$F_{IS}$ (Inbreeding coefficient)**: The probability of uniting gametes relative to gametes drawn at random from within a subpopulation (Individual within the Subpopulation)
 
-- FST (A measure of population substructure): The probability of uniting gametes within subpopulations relative to gametes drawn at random from the entire population (Subpopulation within the Total population).
+- **$F_{ST}$ (A measure of population substructure)**: The probability of uniting gametes within subpopulations relative to gametes drawn at random from the entire population (Subpopulation within the Total population).
 
-- FIT (Overall inbreeding coefficient): Inbreeding coefficient of an individual relative to the total population (Individual within the Total population).
+- **$F_{IT}$ (Overall inbreeding coefficient)**: Inbreeding coefficient of an individual relative to the total population (Individual within the Total population).
 
+Unfortunately, the same package returns different estimates with a different function:
+
+```{r}
+cat("\n", "Statistics using function 'hierfstat::basic.stats':", "\n")
+hierfstat::basic.stats(hierfstat::genind2hierfstat(Frogs.genind))
+```
+
+And using a similar function from package 'pegas' yields different results again:
 ```{r}
 # F statistics by locus (pegas)
 Frogs.pegas <- pegas::genind2loci(Frogs.genind)
 pegas::Fst(Frogs.pegas)
 
 # NOTE: VERY DIFFERENT RESULTS WHEN USING MEAN OF PEGAS, SHOULD BE THE SAME)
-# NEED TO CHECK ORDER?
 apply(pegas::Fst(Frogs.pegas), 2, mean)
 ``` 
 
+Yet another package 'mmod':
 See also: https://cran.r-project.org/web/packages/mmod/vignettes/mmod-demo.pdf
 
 ```{r}
@@ -354,49 +399,72 @@ There are multiple implementations of AMOVA in R. The package 'poppr' provides a
 
 Here we'll use the 'ade4' implementation  using the 'poppr.amova' function. Some arguments (see help file for more detail):
 
-- hier: Specify the hierarchy, either by pointing to the 'hierarchy' slot of the 'genind' object, or by making it explicit as 'hier = ~ Drainage/Basin/Pop' (without the quotes).
-- within: If TRUE, variation within individuals (must be at least diploid) is assessed.
-- dist: optionally, provide an individual-level distance matrix. (Use 'within=FALSE'). The default is to calculate (1 minus) the proportion of shared alleles.
-- missing: Options for dealing with missing values. The default is 'loci', which drops any loci with more than 'cutoff' proportion of missing values.
-- cutoff: See 'missing'. The default is 0.05. In this example, four of eight loci would be dropped, hence I raised the cutoff to 0.5 to keep all loci. This may affect the result.
-- method: either 'ade4' or 'pegas'. See help file ('?poppr.amova').
-- nperm: this is only used for the permutation test in 'pegas', not 'ade4' (for ade4, need to run test separately, see code below).
-
-TOTALLY DIFFERENT STATISTICAL TEST RESULTS FOR PEGAS.
+- **hier**: Specify the hierarchy, either by pointing to the 'hierarchy' slot of the 'genind' object, or by making it explicit as 'hier = ~ Drainage/Basin/Pop' (without the quotes).
+- **within**: If TRUE, variation within individuals (must be at least diploid) is assessed.
+- **dist**: optionally, provide an individual-level distance matrix. (Use 'within=FALSE'). The default is to calculate (1 minus) the proportion of shared alleles.
+- **missing**: Options for dealing with missing values. The default is 'loci', which drops any loci with more than 'cutoff' proportion of missing values. Here we use 'ignore'.
+- **cutoff**: See 'missing'. The default is 0.05. 
+- **method**: either 'ade4' or 'pegas'. See help file ('?poppr.amova').
+- **nperm**: this is only used for the permutation test in 'pegas', not 'ade4' (for ade4, need to run test separately, see code below).
 
 ```{r}
-#amova.result.pegas <- poppr::poppr.amova(Frogs.genind, hier = ~ Drainage/Basin/Pop, 
-#            clonecorrect = FALSE, within = FALSE,
-#  dist = NULL, squared = FALSE, correction = "quasieuclid", sep = "_",
-#  filter = FALSE, threshold = 0, algorithm = "farthest_neighbor",
-#  missing = "loci", cutoff = 0.5, quiet = FALSE, method = c(
-#  "pegas"), nperm = 200)
-
 amova.result.ade4 <- poppr::poppr.amova(Frogs.genind, hier = Frogs.genind@hierarchy, 
-            clonecorrect = FALSE, within = TRUE,
+            clonecorrect = FALSE, within = FALSE,
   dist = NULL, squared = FALSE, correction = "quasieuclid", sep = "_",
-  filter = FALSE, threshold = 0, algorithm = "farthest_neighbor",
-  missing = "loci", cutoff = 0.5, quiet = FALSE, method = c(
-  "ade4"), nperm = 0)
-
+  filter = FALSE, threshold = 0, algorithm = "average_neighbor",
+  missing = "ignore", quiet = FALSE, method = "ade4")
+cat("\n")
 amova.result.ade4
 ```
-The effect sizes are under '$componentsofcovariance' in column '%'. Drainage and Basin each explain about 10% of the genetic variation, whereas most variation is within individuals (i.e., unexplained by the hierarchy). Let's test the components with a permutation test.
+The effect sizes are under '$componentsofcovariance' in column '%'. Drainage and Basin each explain about 13% - 14% of the genetic variation, whereas most variation is within populations (i.e., unexplained by the hierarchy). Let's test the components with a permutation test.
 
 ```{r}
-amova.test <- ade4::randtest(amova.result.ade4, nrepet=199) 
+amova.test <- ade4::randtest(amova.result.ade4, nrepet=499) 
 amova.test
 ```
 
 Let's look at the numerical test results:
 
 - There is statistically significant differentiation between drainage systems and between basins, and within samples (p-values < 0.05). 
-- The p-values for differentiation between populations, and between individuals (samples), are close to 0.05 and may be too close to call. Note that the exact value may vary from one run of the permutation test to the next. With only 199 replicates, the resolution of the p-value is 1/200 = 0.005. We should redo the test with a larger number of permutations (e.g. 499 or 999). This will take longer!
-- Results with nrep=499: p-value < 0.05 for differentiation among populations, >0.05 among individuals.
+- The p-value for differentiation between populations is close to 0.05 and may be too close to call. Note that the exact value may vary from one run of the permutation test to the next. With only 199 replicates, the resolution of the p-value is 1/200 = 0.005. We should redo the test with a larger number of permutations (e.g. 499 or 999). This will take longer!
 
 Hence there is statistically significant differentiation at all levels, except for among frogs sampled at the same pond. The effects are largest for basin and drainage (about 10% each), whereas differentiation among populations within basins is very weak (about 1.5%).
 
 
+### AMOVA with adonis (vegan)
+
+```{r}
+#vegan::adonis(gstudio::dist_amova(Frogs.gstudio) ~ Frogs.gstudio$pop)
+#amova.result.adonis <- vegan::adonis(gstudio::dist_amova(Frogs.gstudio) ~ 
+#                                       Drainage/Basin/Pop, data=Frogs.genind@strata)
+amova.result.adonis <- vegan::adonis(GD.ind$Amova.gstudio ~ Drainage/Basin/Pop, 
+                                     data=Frogs.genind@strata)
+amova.result.adonis
+#amova.result.adonis <- vegan::adonis(sqrt(GD.ind$Amova.gstudio) ~ Drainage/Basin/Pop, 
+#                                     data=Frogs.genind@strata)
+#amova.result.adonis
+
+
+# adonis2, treating matrix as squared:
+#amova.result.adonis2 <- vegan::adonis2(GD.ind$Amova.gstudio ~ Drainage/Basin/Pop, 
+#                                     data=Frogs.genind@strata, sqrt.dist=TRUE)
+#amova.result.adonis2
+#round(amova.result.adonis2$SumOfSqs/sum(amova.result.adonis2$SumOfSqs),3)
+
+D <- GD.ind$Amova.gstudio
+amova.result.pegas <-pegas::amova(D ~ Drainage/Basin/Pop, 
+              data=Frogs.genind@strata, is.squared=FALSE, nperm=200)
+amova.result.pegas
+# R squared:
+round(amova.result.pegas$tab$SSD/max(amova.result.pegas$tab$SSD), 3)
+
+amova.result.ade4 <- poppr::poppr.amova(Frogs.genind, hier = Frogs.genind@hierarchy, 
+            clonecorrect = FALSE, within = FALSE,
+  dist = NULL, squared = FALSE, correction = "quasieuclid", sep = "_",
+  filter = FALSE, threshold = 0, algorithm = "average_neighbor",
+  missing = "ignore", quiet = FALSE, method = "ade4")
+amova.result.ade4
+```
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 detach("package:ade4", unload=TRUE)
