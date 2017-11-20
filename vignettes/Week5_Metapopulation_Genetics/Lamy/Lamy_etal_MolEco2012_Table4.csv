@@ -1,4 +1,4 @@
-APE,MultiYear,Cluster,SITE,Order,POP_code,Site,Type,FST.GESTE,Size,V,C,Stab,D,APA,NLT,Fst.temp
+APE,MultiYear,Cluster,SITE,Order,SiteID,Site,Type,FST.GESTE,Size,V,C,Stab,D,APA,NLT,Fst.temp
 No,Yes,NA,PICO,1,PICO2009,Pico,m,0.055,1.61,1.89,0.5,0.14,35,6,3.29,0.006
 No,Yes,NA,ROC,2,ROC2006,GrosseRoche,m,0.095,1.41,0.99,0.25,-0.09,37,4,2.06,-0.005
 No,Yes,NA,SEN,3,SEN2007,Senneville,m,0.048,1.21,0.98,0,-0.47,40,3,2.24,0.001
