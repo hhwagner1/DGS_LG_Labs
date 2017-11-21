@@ -52,10 +52,10 @@ dd.site.xy <- dplyr::left_join(dd.site, coords, by="SiteID")
 sp::coordinates(dd.site.xy) <- ~ Longitude + Latitude
 sp::proj4string(dd.site.xy) <- sp::CRS("+proj=longlat +datum=WGS84")
 class(dd.site.xy)
-
+dd.site <- dd.site.xy
 
 
 # Export as '.Rdata' files:
 save(dd.ecogen, file = "dd.ecogen.RData", compress='xz')
-save(dd.site.xy, file = "dd.site.RData", compress='xz')
+save(dd.site, file = "dd.site.RData", compress='xz')
 load("dd.ecogen.RData")
