@@ -14,7 +14,54 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+
+NOTE: LECTURE LISTS THE FOLLOWING:
+
+Population level:
+- % Polymorphic loci
+- Number of alleles
+- Allelic richness
+- Observed or expected heterozygosity
+
+Individual level:
+
+- Individual heterozygosity (% hetero loci)
+- Standardized heterozygosity (Coltman et al. 1999)
+- Internatl relatedness (Amos et al 2001)
+- Homozygosity by locus (Aparicio et al. 2006)
+
+Differentiation:
+
+Overall measures?:
+
+- Fst (analogues: Gst, Theta, AMOVA, Linearized Fst (Fst/(1-Fst)), G'st, G''st)
+- Rst
+
+Population based:
+- Jost's D
+- Nei's standard genetic distance (Ds)
+- Cavalli-Sforza Chord distance (Dc)
+- Nei's chord distance (Da)
+- Proportion of shared alleles (Dps)
+- Conditiona genetic distance (cGD)
+
+Individual-based:
+
+- Proportion of shared alleles (Dps)
+- Rousset's a (ar)
+- Relatedness/kinship (Queller and Goodnight, Smouse and Peakalll 1999)
+- Bray Curtis dissimilarity (Legendre 1998)
+- Jaccard distance - similarity
+
+
+
+
+
 ## 1. Overview of Worked Example
+
+This worked example uses microsatellite data. For SNP data, see online tutorial "Calculating Basic Population Genetic Statistics from SNP Data":
+
+http://popgen.nescent.org/StartSNP.html
 
 ### a) Goals 
 
@@ -56,6 +103,8 @@ require(poppr)
 ## 2. Basic checking of markers and populations
 
 Before we do landscape genetic analysis, we need to perform a basic population genetic analysis of the genetic data, in order to better understand the nature and quality of the data and to check for underlying assumptions of population genetic models and corresponding methods. 
+
+To brush up on Hardy-Weinberg equilibrium (HWE) and Linkage disequilibrium (LD), check "Genetics Tutorial" on DGS Landscape Genetics course web page.
 
 ### a) Re-create genind object 
 

@@ -76,15 +76,142 @@ tibble::as.tibble(phen)
 
 ### b) Fit linear models to phenotypic trait data
 
+See here for a LMM tutorial with R: http://www.bodowinter.com/tutorial/bw_LME_tutorial.pdf
+
 Now,we are ready to fit a series of linear models. We will fit three models in total for this laboratory: 
 - **mod1**: a fixed effect model with only an intercept, 
 - **mod2**:a LMM with an intercept (fixed) and a random effect due to family, and 
 - **mod3**:a LMM with an intercept, a random effect due to family nested within population, and a random effect of population. We will thus be ignoring the plot identifiers. All models will also have a fixed effect of block.
 
+CAREFUL: CHECK THAT 'BLOCK' IS TREATED AS FACTOR!
 ```{r}
-mod1 <- lm(phen$d13c~1+phen$block)
-mod2 <- lme4::lmer(d13c~1+(1|family)+block,data = phen, REML = F)
+phen$family <- as.factor(phen$family)
+phen$block <- as.factor(phen$block)
+
+mod1 <- lm(d13c~1+block, data=phen)
+mod2 <- lme4::lmer(d13c ~ 1 + (1|family) + block, data = phen, REML = F)
 mod3 <- lme4::lmer(d13c ~ 1 + (1|population/family) + block, data = phen, REML = F)
+```
+
+FOR TUTORIAL? Note: models will be sorted autmatically by DF (?)
+
+```{r}
+mod4 <- lme4::lmer(d13c ~ 1 + (1|population) + block, data = phen, REML = F)
+mod5 <- lme4::lmer(d13c ~ 1 + (1|population/plot) + block, data = phen, REML = F)
+mod6 <- lme4::lmer(d13c ~ 1 + (1|population/plot/family) + block, data = phen, REML = F)
+anova(mod4, mod5, mod6, mod3)
+
+mod7 <- lme4::lmer(d13c ~ 1 + (1|population/family), data = phen, REML = F)
+anova(mod3, mod7)
+```
+
+Effects:
+
+NOTE: SHOULD EFFECTS BE FITTED BASED ON REML=TRUE?
+
+```{r}
+mod3 <- lme4::lmer(d13c ~ 1 + (1|population/family) + block, data = phen, REML = T)
+
+plot(d13c ~ population, data=phen)
+plot(d13c ~ block, data=phen)
+plot(d13c ~ population * block, data=phen)
+boxplot(d13c ~ population * block, col=gray(seq(0.1,0.9,0.2)), data=phen)
+boxplot(d13c ~ population/plot, col=gray(seq(0.3,0.7,0.2)), data=phen, horizontal=TRUE)
+
+MuMIn::r.squaredGLMM(mod3)
+fixef(mod3)
+plot(fixef(mod3)+ c(0, rep(fixef(mod3)[1], length(fixef(mod3))-1)))
+plot(effects::allEffects(mod3))
+ranef(mod3)
+ranef(mod3)$`family:population`
+ranef(mod3)$population
+
+effects::allEffects(mod1)
+effects::allEffects(mod2)
+effects::allEffects(mod3)
+effects::Effect("block", mod1)
+effects::Effect("block", mod2)
+effects::Effect("block", mod3)
+plot(effects::allEffects(mod1))
+plot(effects::allEffects(mod3))
+summary(effects::allEffects(mod1))
+
+#fitted(mod3)   # Includes block effect
+plot(mod3)
+abline(lm(residuals(mod3) ~ fitted(mod3)), col="red")     # Smooth line?
+plot(residuals(mod3) ~ fitted(mod3))
+plot(residuals(mod3)^2 ~ fitted(mod3))
+abline(lm(residuals(mod3)^2 ~ fitted(mod3)), col="red")   # Smooth line?
+qqnorm(residuals(mod3))
+car::qqPlot(residuals(mod3))
+hist(residuals(mod3))
+```
+
+Better figures:
+
+- Plots estimates with confidence intervals
+- Default: type="re", conditional modes of random effects as forest plot: horizontal plots with mean and prediction interval for each (nested) level of each hiearchical factor
+
+NOTE: sjp.lmer will be deprecated, use plot_model (multiple models: plot_models)
+
+```{r}
+sjPlot::plot_models(mod1, mod2, mod3)
+
+require(sjPlot)
+slotNames(mod3)
+sjPlot::sjp.lmer(mod3, type = "re",
+                 y.offset=0.4) # forest plot for each hierarchical level
+                                     # Plot this in space?
+sjPlot::sjp.lmer(mod3, type = "re",
+         facet.grid = FALSE,
+         sort.est = "sort.all",
+         y.offset = .4)              # Sort by estimate
+
+sjp.lmer(mod3, type = "re.qq")       # qqplot of random effects
+
+# Random effects:
+sjPlot::sjp.lmer(mod3, type="re.qq")
+sjPlot::sjp.lmer(mod3, type="ma")
+
+# Fixed effects:  
+sjPlot::sjp.lmer(mod3, type="fe")      # point estimates with CI (forest plot)
+sjPlot::sjp.lmer(mod3, type = "eff")   # line
+sjPlot::sjp.lmer(mod3, type = "eff", show.ci=TRUE)   # line with CI
+sjPlot::plot_model(mod3, type = "eff", show.ci=TRUE)   # line with CI
+
+# For multiple fixed effects:
+p <- sjp.lmer(mod3, type = "eff", facet.grid = FALSE, 
+             show.ci = TRUE, prnt.plot = FALSE)$plot.list
+plot_grid(p, margin = c(0.3, 0.3, 0.3, 0.3))
+
+# Predicted values based on certain predictors;
+#sjp.lmer(mod3, type = "pred", vars = c("family"))
+#sjp.lmer(mod3, type = "pred", vars = c("neg_c_7", "e42dep"), facet.grid = FALSE)
+
+get_model_data(mod3)
+plot_model(mod3)
+
+# With covariate: fixed effect slopes for random intercept (group levels)
+#sjp.lmer(mod, vars = "AWS", type = "ri.slope")    # parallel
+#sjp.lmer(mod, vars = "AWS", type = "ri.slope", 
+#  emph.grp = c(1, 2, 5), facet.grid = FALSE)      # emphasize select levels
+
+#sjp.lmer(mod, type = "rs.ri", vars = "AWS")       # diff. slope, all levels
+#sjp.lmer(mod, type = "rs.ri", vars = "AWS", sample.n = 15) # sample of 15 level
+#sjp.lmer(mod, type = "rs.ri", sample.n = c(1, 5, 7),show.legend = TRUE) # select
+#sjp.lmer(mod, type = "re.qq")                     # qqplot of random int, slope
+
+#sjp.lmer(mod, type = "slope")
+#sjp.lmer(mod, type = "slope", facet.grid = FALSE, show.ci = TRUE, vars = "AWS")
+
+```
+
+```{r}
+phen$family <- as.factor(phen$family)
+phen$block <- as.factor(phen$block)
+mod3 <- lme4::lmer(d13c ~ 1 + (1|population/family) + block, data = phen, REML = F)
+MuMIn::r.squaredGLMM(mod3)
+fixef(mod3)
 ```
 
 We are now ready to explore each of these models and to look at which model best fits our data. First, you can use the Anova() function in the car library to test the statistical significance of the fixed terms in each mod. This function let's us control the type of sums of squares (SS) being used, here type III sums of squares (see your stats book).
@@ -134,6 +261,8 @@ head(mod3_eff$family)
 The values look strange relative to the original values in the phen object. It turns out that values in each element are relative to the global intercept listed in the 'mod3' output. So, for example, family 59 has a value of $δ^{13}C$ that is 0.269382818 greater than the mean, whereas family 65 has a value of $δ^{13}C$ 0.159631179 less than the mean. Look in the 'mod3' output by printing it to screen and finding the global intercept (-30.59964).
 
 Now, we need to add this number to the values in the $family output in mod3_effs: 
+
+NOTE: INTERCEPT IS MEAN OF FIRST BLOCK (DEFINED ALPHABETICALLY). THIS CALCULATION IS ASSUMING THAT ALL TREES WOULD BE GROWN IN CONDITIONS LIKE BLOCK 1. DOES NOT AFFECT RELATIVE DIFFERENCES BETWEEN TREES, ONLY ABSOLUTE VALUES.
 
 ```{r}
 mod3_fam_only <- mod3_eff$family + -30.59964
@@ -444,7 +573,8 @@ c(ab=ab$"Pr(>F)"[1], bc=bc$"Pr(>F)"[1], abc=abc$"Pr(>F)"[1],
 ```
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
-detach("package:lme4", unload=TRUE)
+detach("package:arm", unload=TRUE)
+#detach("package:lme4", unload=TRUE)
 detach("package:Matrix", unload=TRUE)
 detach("package:adegenet", unload=TRUE)
 detach("package:ade4", unload=TRUE)
