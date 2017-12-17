@@ -26,23 +26,18 @@ vignette: >
 **Learning Objectives**: This lab was constructed to give you experience in working with basic quantitative and population genetic analyses useful to testing hypotheses about local adaptation. Phenotypic measurement is undergoing a revolution, so that familiarity with basic methods in quantitative genetics will serve you well in the future. By the end of the laboratory, you should be able to do the following:
 
 - Construct, fit, and assess linear mixed models (LMMs) to estimate genetic values for a phenotypic trait measured for families existing in a common garden.
-- Use LMMs to estimate heritability of a trait, its differentiation among populations, and its correlation with environment.
-
-In addition, this week's bonus material shows how to: 
-
-- Test whether or not phenotypic trait differentiation is statistically different than genetic differentiation at random molecular markers.
-- Test whether molecular markers behave neutrally (FST outliers)
-- Test association between trait and molecular markers
+- Use LMMs to estimate heritability of a trait.
+- Test trait differentiation among populations, and compare it to differentiation at neutral loci.
+- Assess trait correlation with environmental variables.
 
 ### b) Data set 
 
 The data with which you are working come from a study of western white pine (Pinus monticola Dougl. ex D. Don) sampled around the Lake Tahoe Basin of California and Nevada. These data consist of 157 trees sampled from 10 populations (n = 9 to 22 trees/population). Within each population, trees were sampled within three plots. For each plot, GPS coordinates were collected (i.e. each plot in each population has its own GPS coordinates) and used to generate a set of 7 environmental variables. From these trees, needle tissue was collected from which total DNA was extracted and genotyped for 164 single nucleotide polymorphisms (SNPs). Seeds were also collected and planted in a common garden. The seedlings (n = 5 to 35/tree) were measured for several phenotypic traits. The phenotypic trait we will be working with today is known as the carbon isotope ratio ($δ^{13}C$). It is the ratio of two isotopes of carbon ($^{13}C$ and $^{12}C$) relative to an experimental control, and it is strongly correlated with intrinsic water-use efficiency in plants. Plants need water to live, so it is not a stretch of the imagination to believe that this phenotypic trait has a link with plant fitness.
 
-We will thus have three types of data:
+We will thus have the following data:
 
-- **WWP_SNP_genotypes.txt**: SNP genotypes for all trees sampled in the field.
-- **WWP_environmental_data.txt**:Environmental data collected from each plot within each population.
 - **WWP_phenotype_data.txt**: Phenotypic measurements for 5 seedlings per tree made in a common garden.
+- **WWP.ecogen**: an 'ecogen' object (package 'EcoGenetics') with SNP genotypes for all trees sampled in the field, and with environmental data collected from each plot within each population.
 
 ### c) Required R libraries
 
@@ -56,6 +51,8 @@ require(lme4)
 require(tibble)
 #require(vegan)
 require(gstudio)
+require(sjPlot)
+require(MuMIn)
 
 source(system.file("extdata", "supplemental_R_functions.R", 
                             package = "LandGenCourse"))
@@ -92,12 +89,12 @@ Now,we are ready to fit a series of linear models. We will fit three models in t
 
 
 ```{r}
-mod1 <- lm(phen$d13c~1+phen$block)
-mod2 <- lme4::lmer(d13c~1+(1|family)+block,data = phen, REML = TRUE)
-mod3 <- lme4::lmer(d13c ~ 1 + (1|population/family) + block, data = phen, REML = TRUE)
+mod1 <- lm(d13c ~ block, data = phen)
+mod2 <- lme4::lmer(d13c ~ (1|family) + block,data = phen, REML = TRUE)
+mod3 <- lme4::lmer(d13c ~ (1|population/family) + block, data = phen, REML = TRUE)
 ```
 
-We are now ready to explore each of these models and to look at which model best fits our data. First, you can use the Anova() function in the car library to test the statistical significance of the fixed terms in each mod. This function let's us control the type of sums of squares (SS) being used, here type III sums of squares (see this eek's video, Part 2).
+We are now ready to explore each of these models and to look at which model best fits our data. First, you can use the Anova() function in the car library to test the statistical significance of the fixed terms in each mod. This function let's us control the type of sums of squares (SS) being used, here type III sums of squares (see this week's video, Part 2).
 
 ```{r}
 car::Anova(mod1, type="III")
@@ -111,68 +108,163 @@ Note that 'ANOVA' returned the results fo an F-test for the model 'mod1' of clas
 
 ### c) Compare model fit
 
-Now, let’s explore which model best fits our data. To do this we will use the Akaike Information Criterion (AIC). This statistic is like a penalized likelihood score, where the penalty increases as the number of parameters in a model increases. When using AIC, the model with the lowest score is the preferred model. To get AIC values for each model, do something like the following using the AIC() function. We will learn more about model selection later in the course (Week 12).
+Now, let’s explore which model best fits our data. To do this we will use the Akaike Information Criterion (AIC). This statistic is like a penalized likelihood score, where the penalty increases as the number of parameters in a model increases. When using AIC, the model with the lowest score is the preferred model. 
 
-First we need to re-fit the models 'mod2' and 'mod3' with the option 'REML=FALSE' to obtain AIC values.
+How do we ensure that the AIC values of the different models are comparable? 
 
-```{r}
-mod2.noReml <- lme4::lmer(d13c~1+(1|family)+block,
-                          data = phen, REML = FALSE)
-mod3.noReml <- lme4::lmer(d13c ~ 1 + (1|population/family) + block,
-                          data = phen, REML = FALSE)
-```
+- For 'mod1' that was fitted with 'lm', we use the function 'AIC'. 
+- For the other two models that were fitted with 'lmer', we use 'extractAIC'. 
 
-Now we can compare the AIC values.
+The function 'extractAIC' refits the models with 'REML=FALSE' to obtain AIC values that are comparable between models with different fixed effects. It returns two values, the first is the 'equivalent degrees of freedom' of the fitted model, and the second is the 'AIC' value. Here we only extract the second value.
 
 ```{R}
-aic_vals <- c(AIC(mod1), AIC(mod2.noReml), AIC(mod3.noReml))
+aic_vals <- c(AIC(mod1), extractAIC(mod2)[2], extractAIC(mod3)[2])
 names(aic_vals) <- c("mod1","mod2","mod3")
 aic_vals
 ```
 
-We can express the relative support of each model using Akaike weights. These can be thought of as the conditional probabilities of each model. To do this, we will need to write a few lines of R commands. Luckily for you, I have provided a function named aic_weights that will calculate these for you. This function is located in the "supplemental_R_functions.R" file that we have sourced at the beginning. 
+Hence, model 'mod3' appears to be the best model. This suggests that there are important differences among populations, and among trees within populations.
+
+We will learn more about model selection later in the course (Week 12).
+
+### d) Check model validity and describe effects
+
+Is the model 'mod3' valid? Let's check the residuals for deviation from normal distribution. The function 'plot_model' has an argument 'type="diag"' that returns three diagnostic plots for an 'lme4' object. 
 
 ```{r}
-aic_out <- aic_weights(aic_vals)
-aic_out
+sjPlot::plot_model(mod3, type="diag") 
 ```
 
-Inspect the values in aic_out. They add to one and can be thought of as conditional probabilities of each model, with the conditioning being on only these three models being examined. Which model has the highest probability? How much larger is it than the other probabilities? What does this tell you about your optimal model?
+Hint: You may need to use the arrow symbols to scroll through the plots in the 'Plot' tab in RStudio.
 
-### d) Calculate genetic values for maternal trees
+The plots are:
 
-Now that we have the best model, let’s use it to calculate the genetic values for each maternal tree for $δ^{13}C$. To do this, we will work directly with the mod3 output from before. What we are after is the value of $δ^{13}C$ for each tree from which we measured $δ^{13}C$ from five of her offspring in the common garden. This is the genetic value and represents the value of $δ^{13}C$ that would result if you knew all the genes and effect sizes of variation within those genes determining variation for this trait (see genetics without molecular markers!).
+- A normal probability plot: points should follow line.
+- A density curve: distribution should approximate normal curve.
+- A scatterplot of residuals against fitted values: the plot should not 'thicken' (which would indicate non-constanct variance = heteroscedasticity), and the blue line should be horizontal (no non-linear relationship).
+
+The residual plots did not indicated any major problem. Hence we can procede to interpreting the results.
+
+
+How much of the variation in 'd13c' is explained by the fixed and random factors?
+
+The function 'r.squaredGLMM' from the package 'MuMIn' (which stands for multi-model inference) returns two values:
+
+- R2m: marginal $R^2$. This is the variance explained by fixed factors. 
+- R2c: conditional $R^2$. This is interpreted as the variance explained by both fixed and random factors, i.e., the entire model.
+
+```{r}
+MuMIn::r.squaredGLMM(mod3)
+```
+
+The fixed effect 'block' had a small effect of about 2.5%. The total model explained about 23%, most of which was due to the random effects.
+
+How important are the nested random factors 'population' and 'family'? The summary for 'mod3' lists the variance components under 'Random effects'. 
+
+
+```{r}
+summary(mod3)
+```
+
+Here we extract these variance components from the summary and divide by their sum. 
+
+
+```{r}
+var.re <- unlist(summary(mod3)$varcor)
+var.re / (sum(var.re) + summary(mod3)$sigma^2)
+```
+
+An easier way to accomplish the same thing is to use the function 'icc' of the 'sjstats' package. The inter-class correlation ICC tells us how much of the variance is explained by clustering within populations and families:
+
+```{r}
+sjstats::icc(mod3)
+```
+
+Thus population and family (nested within population) both had a medium-size effect (> 9% variance explained) on d13c values.
+
+Which blocks, populations or trees had higher mean d13c values than others? To answer this question, we extract and plot the fixed and random effects. We'll start with the fixed effect for 'block'. 
+
+The effects are not simply the mean of all seeds from the same block, but the marginal effect of 'block', i.e., estimates of the mean per block after accounting for all other effects (i.e., keeping population and family constant). 
+
+```{r}
+ggeffects::ggeffect(mod3, terms=c("block"))
+sjPlot::plot_model(mod3, type="eff", terms=c("block"))
+```
+
+The plot shows the mean d13c value for each block (accounting for population and family) and a 95% for each mean.
+
+Now let's plot the effects (mean with 95% confidence interval) for each random factor, accounting for all other factors. 
+
+Note: If the plots appear in the 'Plot' tab in RStudio, use the arrows to scroll between plots.
+
+```{r}
+sjPlot::plot_model(mod3, type="re")     
+```
+
+We can see that there are considerable differences between populations, where 'blk cyn' has the highest, and 'mt watson' the lowest mean. 
+
+### e) Calculate genetic values for maternal trees
+
+Now that we have the best model and the effect estimates, let’s calculate the genetic values for each maternal tree for $δ^{13}C$. What we are after is the value of $δ^{13}C$ for each tree from which we measured $δ^{13}C$ from five of her offspring in the common garden. This is the genetic value and represents the value of $δ^{13}C$ that would result if you knew all the genes and effect sizes of variation within those genes determining variation for this trait (see genetics without molecular markers!).
+
+Because the effect of each factor is calculated while accounting for all other factors, we need to piece together the genetic trait of each tree from three additive effects:
+
+- Global mean (intercept)
+- Family effect
+- Population effect
+
+We can extract the global mean from the object 'mod3'. This is the intercept listed in the model summary, and it is also the effect estimate for the first block. 
+
+```{r}
+Global.mean <- mod3@beta[1]
+Global.mean
+```
 
 To get the effects due to family and population, we can use the 'ranef' function from package 'lme4'. This function produces estimates for each family and population in a list with named elements ('family' and 'population').
 
-First, let’s get the list we need: 
+The family effect is straight-forward to extract. Each value is relative to the global mean, so that family '59' has a mean that is 0.2697 higher than the global mean. Each row name is a combination of the family (tree) ID and the population ID, separated by a colon ":".
 
 ```{r}
-mod3_eff <- lme4::ranef(mod3)
-head(mod3_eff$family)
+Family.effect <- lme4::ranef(mod3)$family
+head(Family.effect)
 ```
-
-The values look strange relative to the original values in the phen object. It turns out that values in each element are relative to the global intercept listed in the 'mod3' output. So, for example, family 59 has a value of $δ^{13}C$ that is 0.269382818 greater than the mean, whereas family 65 has a value of $δ^{13}C$ 0.159631179 less than the mean. Look in the 'mod3' output by printing it to screen and finding the global intercept (-30.59964).
-
-Now, we need to add this number to the values in the $family output in mod3_effs: 
+Now we need, for each tree, the corresponding population effect. However, 'ranef' returns only one value per population:
 
 ```{r}
-mod3_fam_only <- mod3_eff$family + -30.59964
-head(mod3_fam_only)
+lme4::ranef(mod3)$population
 ```
 
-We still are not done. Remember that families were nested within populations, so the total effect of a maternal tree was partitioned into an effect of population and trees within populations. Therefore, we should add the population effect to the numbers from in 'mod3_fam_only'. 
+Now we need to assign the correct value to each tree. Here we work from the row names of the family effect. The function 'strsplit' splits a character string at the symbol defined by 'split'. We use it to split the row names by the colon, then retain only the second half, whic is the population ID. We use function 'lapply' to do this for each row name of 'Family.effect'. This returns a list with only one character string in each list element. We use 'unlist' to reduce the list to a character vector 'pop.name'. 
 
-To get this we need to replicate the values in the $population part of the list for each tree in each population. You can just use the pop_rep function provided in "supplemental_R_functions.R":
 
 ```{r}
-mod3_all_eff <- mod3_fam_only + pop_rep(pop.eff = mod3_eff$population, 
-                                        n.fam = nrow(mod3_eff$family), 
-                                        fam.eff = mod3_eff$family)
-head(mod3_all_eff)
+pop.name <- unlist(lapply(row.names(Family.effect), 
+                        function(x) strsplit(x, split=":")[[1]][2]))
+head(pop.name)
 ```
 
-The values held in the object mod3_all_eff are now the genetic effects of each maternal tree. In other words, this is the phenotypic trait value for the maternal tree for $δ^{13}C$. Note that we did not measure the maternal tree, but inferred her phenotype from her offspring in a common environment.
+Next, we find for each pop name the corresponding row in the table with the population effects. The function 'match' returns the corresponding line number, which we write into a vector 'index'. 
+
+```{r}
+index <- match(pop.name, row.names(ranef(mod3)$population))
+head(index)
+```
+
+Finally, we use the index to extract for each of the 157 trees the corresponding family effect value. 
+
+```{r}
+Population.effect <- ranef(mod3)$population[index,1] 
+head(Population.effect)
+```
+
+Now we can calculate the trait from the global mean, family effect and population effect:
+
+```{r}
+Trait <- Global.mean + Family.effect + Population.effect
+head(Trait)
+```
+
+The object Trait thus contains the phenotypic trait value for each maternal tree for $δ^{13}C$. Note that we did not measure the maternal tree, but inferred her phenotype from her offspring in a common environment.
 
 
 ## 3. Estimate trait heritability
@@ -186,7 +278,7 @@ The values held in the object mod3_all_eff are now the genetic effects of each m
 Let’s start with estimating the heritability of $δ^{13}C$. If you remember from your undergraduate evolution course, heritability refers generally to the proportion of phenotypic variance due to genetic variance. It comes in at least two different versions. The version we are interested in is narrow-sense heritability ($h^2$), which is defined as the ratio of additive genetic variance to total phenotypic variance:
 
 $$h^{2} = \frac{\sigma^{2}_{additive}}{\sigma^{2}_{total}}$$
-We need to extract the variance components from 'mod3' for all model terms. We do this visually by printing mod3 to screen or using a set of functions applied to 'mod3'. For this lab, let’s do it visually.
+We need to extract the variance components from 'mod3' for all model terms. We do this visually by printing mod3 to screen or using a set of functions applied to 'mod3'. Here, we will do both.
 
 ```{r}
 mod3
@@ -194,31 +286,44 @@ mod3
 
 Using the results from above, let’s calculate $h^2$. If we assume that the seedlings from each maternal tree are half-siblings (i.e. same mom, but each with a different father) then $σ^2_A = 4 σ^2_{family}$ (so variance due to family:population). If the seedlings were all full-siblings, then the 4 would be replaced with 2. We also need to realize that we are using a hierarchical model, where some of the genetic effects are due to among populations, where $h^2$ is a measure within populations. That means we have to ignore the variance due to populations. Let’s assume half-siblings. We can then do the following:
 
+Copying the values visually from the output above (note that we need to square the standard deviations to get the variances):
+
 ```{r}
-add_var <- 4*(0.2831^2)
-total_wp_var <- (0.2831^2) + (0.8509^2)
+add_var <- 4*(0.2857^2)
+total_wp_var <- (0.2857^2) + (0.8452^2)
+h2 <- add_var/total_wp_var
+h2
+
+```
+
+And the same using functions to extract the variance components:
+
+```{r}
+add_var <- 4*var.re['family:population']
+total_wp_var <- var.re['family:population'] + summary(mod3)$sigma^2
 h2 <- add_var/total_wp_var
 h2
 ```
 
-Inspect your value of $h^2$. What does it mean? Why did we square the values above?
+Inspect your value of $h^2$. What does it mean? 
 
 We have generated a point estimate for $h^2$. It represents the average $h^2$ across populations after removing the genetic effects due to population differences. Would it not be nice to also have a confidence interval? We can do that through an approach known as parametric bootstrapping. This approach simulates data using the fitted model a large number of times. Using the resulting distribution, you can create confidence intervals using the appropriate symmetric quantiles of the distribution. To see this, please
 do the following using the mod_boot function in "supplemental_R_functions.R". It will takes a few moments to run the first line.
 
 ```{r}
-par(mar=c(1, 1, 1, 1))
+par(mar=c(1, 2, 1, 1))
 h2_boot_out <- mod_boot(model = mod3, nboot = 1000)
 ci_95 <- quantile(h2_boot_out, probs = c(0.025, 0.50, 0.975))
 ci_95
 boxplot(h2_boot_out, range=5); abline(h = h2, col = "red") 
 ```
 
-Interpret the numerical 95% confidence intervals 'ci_95' and boxplot with our original $h^2$ estimate (red line: 0.399) for comparison to the bootstrap distribution. 
+Interpret the numerical 95% confidence intervals 'ci_95' and boxplot with our original $h^2$ estimate (red line: 0.405) for comparison to the bootstrap distribution. 
 
 - Do you think that $h^2$ is statistically different than zero? 
 - Is this consistent with the AIC results from Part 1? 
-- Is it meaningful that the red line is very similar to the mean (or median) of the bootstrap distribution? How would you change the code for a 99% confidence interval?
+- Is it meaningful that the red line is very similar to the mean (or median) of the bootstrap distribution? 
+- How would you change the code for a 99% confidence interval?
 
 ### b) Estimate trait differentiation
 
@@ -227,90 +332,60 @@ Great, we have shown that within population genetic variation is statistically g
 $$Q_{ST} = \frac{\sigma^{2}_{population}}
 {\sigma^{2}_{population}+8\sigma^{2}_{family}}$$
 
+Again, we can do this by copying the values visually from the output:
+
 ```{r}
-num_qst <- 0.3088^2
-dem_qst <- (0.3088^2) + (8*(0.2831^2))
+num_qst <- 0.3295^2
+dem_qst <- 0.3295^2 + (8*(0.2857^2))
 qst <- num_qst/dem_qst
+qst
 ```
 
-Inspect your value in qst object. What does it mean? Look at the quantities
-in the equation above, what is the denominator equal to? Is it the total
-phenotypic variance or the total genetic variance?
+Or using functions to extract the variance components:
+
+```{r}
+num_qst <- var.re['population']
+dem_qst <- var.re['population'] + (8*var.re['family:population'])
+qst <- num_qst/dem_qst
+qst
+```
+
+Inspect your value in qst object:
+
+- What does it mean? 
+- Look at the quantities in the equation above, what is the denominator equal to? Is it the total phenotypic variance or the total genetic variance?
 
 Now, we can again look at a confidence interval using parametric bootstrapping. Again, please use the function 'mod_boot_qst' that is also located in "supplemental_R_functions.R". As before, it will take a few moments for the first line to finish.
 
 ```{r}
-par(mar=c(1, 1, 1, 1))
+par(mar=c(1, 2, 1, 1))
 qst_boot_out <- mod_boot_qst(model = mod3, nboot = 1000)
 ci_95_qst <- quantile(qst_boot_out, probs = c(0.025, 0.50, 0.975)) 
 ci_95_qst
 boxplot(qst_boot_out); abline(h = qst, col = "red")
 ```
 
-Interpret the results. Do you think that $Q_{ST}$ is statistically different than zero? Is this consistent with the AIC results from Part 1? Is it meaningful that the red line is less similar to the mean (or median) of the bootstrap distribution as compared to $h^2$?
+Interpret the results. 
 
-## 4. Combine trait, genotypic and environmental data
+- Do you think that $Q_{ST}$ is statistically different than zero? 
+- Is this consistent with the AIC results from Part 1? 
+- Is it meaningful that the red line is less similar to the mean (or median) of the bootstrap distribution as compared to $h^2$?
 
-Now that we have an estimate of the trait for each family (i.e., mother tree), we can add it to the dataset to facilitate their joint analysis.
+## 4. Compare $Q_{st}$ to $F_{st}$ measured from SNP data
 
-The 'EcoGenetics' package facilitates the joint storing and spatial analysis of phenotypic, genotypic, spatial and environmental data. 
+### a) Import 'ecogen' object 
 
-### a) Import genetic and environmental data
-
-Let's import the SNP data ...
-
-```{r}
-snp <- read.delim(system.file("extdata", "WWP_SNP_genotypes.txt", 
-                            package = "LandGenCourse"), sep = "\t", header = T)
-snp[1:3, 1:5]
-```
-
-... and the environmental data... 
+Load the data set 'WWP.ecogen'.
 
 ```{r}
-env <- read.delim(system.file("extdata", "WWP_environmental_data.txt", 
-                            package = "LandGenCourse"),sep = "\t", header = T)
-as.tibble(env)
+#data(WWP.ecogen, package="LandGenCourse")
+load(paste0(here::here(), "/data/WWP.ecogen.RData"))
 ```
 
-and write the $δ^{13}C$ estimates into an object 'trait'. 
-
-```{r}
-trait <- mod3_all_eff
-names(trait)[1] <- "d13c"
-```
-
-For import into an 'ecogen' object, all tables should have matching row numbers as identifiers. Here the identifier is the variable 'family', hence we use it to create new row names. For 'trait', we use function 'strsplit' to extract the variable 'trait.family' from the first part of the existing row names (before the colon ':'). 
-
-An additional problem arises because we have a single trait column, but the function 'ecogen' does not allow importing a single vector. Hence we declare it a data frame and specify its row names.
-
-```{r}
-row.names(snp) <- snp$family 
-row.names(env) <- env$family
-trait.family <- sapply(strsplit(row.names(trait),":"), 
-                              function(ls) ls[[1]])
-trait <- data.frame(d13c = trait$d13c)
-row.names(trait) <- trait.family
-```
-
-### b) Discard monomorphic SNPs
-
-Some of the SNPs are monomorphic, and we'll want to discard them first. Here we remove the identifier variables in the first two columns, then identify the monomorphic loci. The second line tabulates the genotypes for each locus (e.g., the number of AA, AC, and CC), and checks whether the number of genotypes equals 1 (TRUE) or not (FALSE). The third line retains the columns with 'mono=FALSE' and discards the monomorphic loci. The number of SNPs is thus reduced from 164 to 160.
-
-```{r}
-snp <- snp[,-c(1:2)]
-dim(snp)
-mono <- sapply(snp, function(ls) length(table(ls))) == 1
-snp <- snp[, mono==FALSE]
-dim(snp)
-```
-
-### c) Create 'ecogen' object 
-
-Now we can assign different parts of the data to different slots of the ecogen object:
+The 'ecogen' object contains information in the following slots:
 
 - **XY**: data frame with spatial coordinates (here: longitude, latitude)
-- **P**: data frame with phenotypic traits (here: d13C, family)
+- **P**: data frame with phenotypic traits (here: d13C)
 - **G**: data frame with genotypic data (here: 164 SNPs)
 - **A**: generated automatically from G: matrix of allele counts (codominant markers only)
 - **E**: data frame with environmental data (here: 7 bioclimatic etc. site variables)
@@ -318,78 +393,86 @@ Now we can assign different parts of the data to different slots of the ecogen o
 - **C**: custom data frame (optional)
 - **OUT**: will be used for output generated by methods from package 'EcoGenetics'
 
-```{r}
-WWP <- EcoGenetics::ecogen(XY = env[,3:4], P = trait, G = snp, E = env[,-c(1:4)], 
-                           S = env[,1:2], order.G = FALSE, missing = "NA")
-WWP
-```
-Let's look at the slots @G and @A, which hold two different representations of the SNP markers. 
+### b) Estimate global $F_{ST}$ from SNP data
+
+Let’s examine differentiation for the SNP data using $F_{ST}$. There are a multitude of ways to do this, but we will use the varcomp.glob function from the 'hierfstat' package. 
+
+First, however, we need to re-format the data to the format that 'hierfstat' expects. This is easy with the function 'ecogen2hierfstat'.
 
 ```{r}
-WWP@G[1:5, 1:2]
-WWP@A[1:5, 1:4]
+WWP.hierfstat <- EcoGenetics::ecogen2hierfstat(WWP.ecogen, pop='population', 
+                                  to_numeric=TRUE, nout=1)
 ```
 
-In slot @A, each column is one SNP allele, hence we have two columns per SNP, just like the slot @tab in a 'genind' object. 
+Now we can calculate $F_{ST}$ with the function 'varcomp.glob'.
+```{r}
+fst <- hierfstat::varcomp.glob(levels = WWP.hierfstat[,1], 
+                               loci = WWP.hierfstat[,-1], diploid = T)
+head(fst$loc)
+fst$overall
+fst$F
+```
 
-### d) Export options 
+Note: You can also explore bootstrapping across loci to get a confidence interval using the boot.vc() function.
 
-Indeed, we can easily convert from an 'ecogen' object to a 'genind' object. The spatial coordinates are not exported automatically though, here we add them manually to the @other slot. 
+Now, let’s look at the output. The object fst has three elements. 
+
+- 'loc': The first element is matrix of variance components for each SNP. The columns of this matrix are levels you used from the highest to the lowest (left to right). For us, that means column 1 is the variance component for population, column 2 is the variance component for individual, and column 3 is the variance component for the error (or residual). 
+- 'overall': The second element is the sum of the columns. 
+- 'F': The last element is a matrix of F-statistics. These work by using as subscripts the column title relative to the row title, so the first value on the first line is the F- statistic for population relative to total (i.e. $F_{ST}$). It is calculated based on the variance components from $overall as:
+
+$$F_{pop,tot} = \frac{\sigma^{2}_{pop}}
+{\sigma^{2}_{pop}+\sigma^{2}_{ind}+\sigma^{2}_{error}}$$
+
+### c) Compare $Q_{ST}$ to $F_{ST}$
+
+Now that we have inspected overall genetic differentiation among populations, let’s use the 'QstFstComp' library to formally test whether or not $Q_{ST} > F_{ST}$ for $δ^{13}C$.
+
+Note: as this is a permutation test, if you run it several times, the results may change slightly from run to run. 
 
 ```{r}
-WWP.genind <- EcoGenetics::ecogen2genind(WWP)
-WWP.genind@other$latlong <- WWP@XY
-WWP.genind
+phen_mod <- phen[,-c(2,4)]
+QstFst_out <- QstFstComp::QstFstComp(fst.dat = WWP.hierfstat, 
+                                     qst.dat = phen_mod, 
+                                     numpops = nlevels(WWP@S$population), 
+                                     nsim = 10000, 
+                                     breeding.design = "half.sib.dam",
+                                     dam.offspring.relatedness = 0.25, 
+                                     output = "concise_nowrite")
+
+QstFst_out[[1]]
+QstFst_out[[3]]
 ```
 
-Note that the strata object has been populated with 'population' and 'family'. Import from 'genind' to 'ecogen':
+The output contains the following elements:
 
-THIS DOES NOT WORK, FIX BUG IN 'genind2ecogen'.
+- '[[1]]': The calculated difference between Qst and Fst with 95% critical values.
+- '[[2]]': an output file names (though we suppressed the writing of this file with the option 'output="consise_nowrite")'
+- '[[3]]': p-values for a hypothesis test with H0: $Q_{ST} = F_{ST}$, with three different alternatives ('less', 'greater', 'two.sided')
+- '[[4]]': the Fst value estimated from the data with 95% confidence intervals.
+- '[[5]]': the Qst value estimated from the data with 95% confidence intervals.
+- '[[6]]': the additive genetic variance for the trait with 95% confidence intervals.
 
-```{r}
-WWP1 <-EcoGenetics::genind2ecogen(WWP.genind)
-WWP1@XY <- WWP.genind@other$latlong
-WWP1
-```
+Note: the values are somewhat different from what we calculated, most likely because the function 'QstFstComp' did not account for the block effect.
 
-Conversion functions exist also for gstudio, hierfstat, Genepop, SPAGeDi and Geneland formats. Which means that you can convert from one of these to another via an 'ecogen' object! If you've ever tried to do a pop gen analysis, you'll appreciate this.
+Inspect the first and third elements of the list 'QstFst_out': 
 
-Note: these functions need the corresponding package to be loaded, which happens automatically for 'adegenet' but 'gstudio' may need to be loaded explicitly. Also, not all slots are exported and imported automatically. Here we won't worry about the trait or environmental data.
+- For the observed values, is $Q_{ST} > F_{ST}$? 
+- Which alternative is most appropriate here?
+- Can the null hypothesis be rejected with alpha = 0.05?
+- What does this mean biologically? 
 
-```{r}
-require(gstudio)
-WWP.gstudio <- EcoGenetics::ecogen2gstudio(WWP)
-as.tibble(WWP.gstudio[,1:8])             #  Show first 8 columns
-```
- 
-When importing from 'gstudio' format to 'ecogen', we can specify the variables that hold the coordinates, ID, and strata ('struct').
+## 5. Assess correlation between trait and environment
 
-```{r}
-WWP2 <- EcoGenetics::gstudio2ecogen(WWP.gstudio, lat = "Latitude", lon = "Longitude", 
-                                    ID = "ID", struct = c("population", "family"))
-WWP2
-```
-
-We can export the 'ecogen' object 'WWP' to a folder 'output' in your current project folder with the function 'save', and load it again with 'load'. To run the code, remove the hashtags '#' at the beginning of each line (i.e., uncomment the lines). 
-
-```{r}
-#require(here)
-#if(!dir.exists(paste0(here(),"/output"))) dir.create(paste0(here(),"/output"))
-#save(WWP, file = paste0(here(), "/output/WWP.RData"))
-#load(paste0(here(), "/output/WWP.RData"))
-```
-
-## 5. Estimate trait correlation with environment
-
-The last thing we want to do in this part of the lab is to test for correlations
-between genetic values of $δ^{13}C$ and environmental data.
+The last thing we want to do in this part of the lab is to test for correlations between genetic values of $δ^{13}C$ and environmental data.
 
 ### a) Correlation matrix
 
 First, we need to combine the trait, geographic and environmental data into a single data frame 'phen_env'. At the same time, we'll use the function 'scale' to scale the geographic and environmental variables, so that each has mean = 0 and a sd = 1. 
 
 ```{r}
-phen_env <- data.frame(d13c=scale(WWP@P[,1]), scale(WWP@XY), scale(WWP@E))
+phen_env <- data.frame(d13c=scale(WWP.ecogen@P[,1]), 
+                       scale(WWP.ecogen@XY), scale(WWP.ecogen@E))
 ```
 
 Fortunately, from the way we imported the data into the 'ecogen' object (with matching row labels), we know that the data in all slots of WWP are ordered by the same variable 'family', so that their rows correspond.
@@ -419,7 +502,7 @@ It is important to understand that these estimates and p-values are based on typ
 
 - Is this multiple regression model statistically significant? If so, why? 
 - Which variables have a statistically significant effect, given all other variables in the model?
-- Which variables provide the largest effects (use the column labeled 'Estimate', which is the partial regression coefficient)? Is this consistent with the correlation results?
+- Which variables provide the largest effects (use the column labeled 'Estimate', which is the partial regression coefficient because we used scaled variables)? Is this consistent with the correlation results?
 
 ### c) Variation partitioning
 
@@ -429,7 +512,8 @@ This can be assessed with variation partitioning, using the function 'varpart' f
 
 ```{r}
 par(mar=c(1, 1, 1, 1))
-mod <- vegan::varpart(WWP@P$d13c, WWP@E, WWP@XY, transfo="standardize")
+mod <- vegan::varpart(WWP.ecogen@P$d13c, WWP.ecogen@E, WWP.ecogen@XY, 
+                      transfo="standardize")
 mod
 plot(mod)
 ```
@@ -449,12 +533,17 @@ First we fit models for all testable fractions (see last column in output above)
 The first argument of 'rda' is the response, the second argument is the set of predictors, and the third is an optional set of predictors that should be used for conditioning (i.e., their effect is accounted for before regressing the response on the second set).
 
 ```{r}
-ab <- vegan::anova.cca(vegan::rda(WWP@P$d13c, WWP@E,  transfo="standardize"))
-bc <- vegan::anova.cca(vegan::rda(WWP@P$d13c, WWP@XY, transfo="standardize"))
-abc <- vegan::anova.cca(vegan::rda(WWP@P$d13c, data.frame(WWP@E, WWP@XY),
+ab <- vegan::anova.cca(vegan::rda(WWP.ecogen@P$d13c, WWP.ecogen@E,  
+                                  transfo="standardize"))
+bc <- vegan::anova.cca(vegan::rda(WWP.ecogen@P$d13c, WWP.ecogen@XY, 
+                                  transfo="standardize"))
+abc <- vegan::anova.cca(vegan::rda(WWP.ecogen@P$d13c, 
+                                   data.frame(WWP.ecogen@E, WWP.ecogen@XY),
                                    transfo="standardize"))
-a <- vegan::anova.cca(vegan::rda(WWP@P$d13c, WWP@E, WWP@XY, transfo="standardize"))
-b <- vegan::anova.cca(vegan::rda(WWP@P$d13c, WWP@XY, WWP@E, transfo="standardize"))
+a <- vegan::anova.cca(vegan::rda(WWP.ecogen@P$d13c, WWP.ecogen@E, 
+                                 WWP.ecogen@XY, transfo="standardize"))
+b <- vegan::anova.cca(vegan::rda(WWP.ecogen@P$d13c, WWP.ecogen@XY, 
+                                 WWP.ecogen@E, transfo="standardize"))
 ```
 
 Now we can extract the p-values. Looks like all testable fractions are statistically significant!
@@ -465,10 +554,11 @@ c(ab=ab$"Pr(>F)"[1], bc=bc$"Pr(>F)"[1], abc=abc$"Pr(>F)"[1],
 ```
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
-detach("package:lme4", unload=TRUE)
-detach("package:Matrix", unload=TRUE)
-detach("package:adegenet", unload=TRUE)
-detach("package:ade4", unload=TRUE)
-detach("package:gstudio", unload=TRUE)
+#detach("package:lme4", unload=TRUE)
+#detach("package:Matrix", unload=TRUE)
+#detach("package:adegenet", unload=TRUE)
+#detach("package:ade4", unload=TRUE)
+#detach("package:gstudio", unload=TRUE)
+detachAllPackages()
 ```
 
