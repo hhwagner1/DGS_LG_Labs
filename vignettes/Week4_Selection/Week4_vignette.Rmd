@@ -90,30 +90,42 @@ Now,we are ready to fit a series of linear models. We will fit three models in t
 - **mod2**:a LMM with an intercept (fixed) and a random effect due to family, and 
 - **mod3**:a LMM with an intercept, a random effect due to family nested within population, and a random effect of population. We will thus be ignoring the plot identifiers. All models will also have a fixed effect of block.
 
+
 ```{r}
 mod1 <- lm(phen$d13c~1+phen$block)
-mod2 <- lme4::lmer(d13c~1+(1|family)+block,data = phen, REML = F)
-mod3 <- lme4::lmer(d13c ~ 1 + (1|population/family) + block, data = phen, REML = F)
+mod2 <- lme4::lmer(d13c~1+(1|family)+block,data = phen, REML = TRUE)
+mod3 <- lme4::lmer(d13c ~ 1 + (1|population/family) + block, data = phen, REML = TRUE)
 ```
 
-We are now ready to explore each of these models and to look at which model best fits our data. First, you can use the Anova() function in the car library to test the statistical significance of the fixed terms in each mod. This function let's us control the type of sums of squares (SS) being used, here type III sums of squares (see your stats book).
-
-Note that for modelsl fitted with 'lmer' (models 2 & 3) and with 'REML = F', we need to use a chi-squared test. An alternative would be to specifiy 'REML = T'. However, further down we will need the likelihood (calculated with 'REML = F') to look at model performance (as opposed to the approximate REML value generated with 'REML = T').
-
+We are now ready to explore each of these models and to look at which model best fits our data. First, you can use the Anova() function in the car library to test the statistical significance of the fixed terms in each mod. This function let's us control the type of sums of squares (SS) being used, here type III sums of squares (see this eek's video, Part 2).
 
 ```{r}
-car::Anova(mod1, type="III", test.statistic = "F")
-car::Anova(mod2, type="III", test.statistic = "Chisq")
-car::Anova(mod3, type="III", test.statistic = "Chisq")
+car::Anova(mod1, type="III")
+car::Anova(mod2, type="III")
+car::Anova(mod3, type="III")
 ```
+
 Compare the output. What do you conclude about the effect of block in each of the models? Remember this is an experimental treatment, so your conclusion directly addresses whether micro-environmental variation exists in your common garden.
+
+Note that 'ANOVA' returned the results fo an F-test for the model 'mod1' of class 'lm' and a chi-square test for the models of class 'lme4' that were fitted with 'lmer'.
 
 ### c) Compare model fit
 
-Now, let’s explore which model best fits our data. To do this we will use the Akaike Information Criterion (AIC). This statistic is like a penalized likelihood score, where the penalty increases as the number of parameters in a model increases. When using AIC, the model with the lowest score is the preferred model. To get AIC values for each model, do something like the following using the AIC() function.
+Now, let’s explore which model best fits our data. To do this we will use the Akaike Information Criterion (AIC). This statistic is like a penalized likelihood score, where the penalty increases as the number of parameters in a model increases. When using AIC, the model with the lowest score is the preferred model. To get AIC values for each model, do something like the following using the AIC() function. We will learn more about model selection later in the course (Week 12).
+
+First we need to re-fit the models 'mod2' and 'mod3' with the option 'REML=FALSE' to obtain AIC values.
 
 ```{r}
-aic_vals <- c(AIC(mod1), AIC(mod2), AIC(mod3))
+mod2.noReml <- lme4::lmer(d13c~1+(1|family)+block,
+                          data = phen, REML = FALSE)
+mod3.noReml <- lme4::lmer(d13c ~ 1 + (1|population/family) + block,
+                          data = phen, REML = FALSE)
+```
+
+Now we can compare the AIC values.
+
+```{R}
+aic_vals <- c(AIC(mod1), AIC(mod2.noReml), AIC(mod3.noReml))
 names(aic_vals) <- c("mod1","mod2","mod3")
 aic_vals
 ```
