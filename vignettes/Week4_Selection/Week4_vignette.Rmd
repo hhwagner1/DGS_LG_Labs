@@ -1,8 +1,9 @@
 ---
-title: "Week 4: Selection"
+title: "Week 6: Selection"
 author: 
-- "Andrew Eckert (worked example)"
-- "Helene Wagner (vignette)"
+- "Andrew Eckert"
+- "Kati Csillery"
+- "Helene Wagner"
 date: "`r Sys.Date()`"
 show_toc: true
 output:
@@ -11,7 +12,7 @@ output:
     fig_width: 4 
     fig_height: 3.5
 vignette: >
-  %\VignetteIndexEntry{Week 4: Selection}
+  %\VignetteIndexEntry{Week 6: Selection}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -72,6 +73,14 @@ source(system.file("extdata", "supplemental_R_functions.R",
 phen <- read.delim(system.file("extdata", "WWP_phenotype_data.txt", 
                             package = "LandGenCourse"), sep = "\t", header = T)
 tibble::as.tibble(phen)
+```
+
+Check the variable types: 'family' and 'block' have been imported as type 'integer', and we need to convert them to 'factor' first.
+
+```{r}
+phen$family <- as.factor(phen$family)
+phen$block <- as.factor(phen$block)
+sapply(phen, class)
 ```
 
 ### b) Fit linear models to phenotypic trait data
