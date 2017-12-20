@@ -1,5 +1,5 @@
 ---
-title: "Week 6: Selection"
+title: "Week 6: Quantitative Genetics"
 author: 
 - "Andrew Eckert"
 - "Kati Csillery"
@@ -12,7 +12,7 @@ output:
     fig_width: 4 
     fig_height: 3.5
 vignette: >
-  %\VignetteIndexEntry{Week 6: Selection}
+  %\VignetteIndexEntry{Week 6: Quantitative Genetics}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
