@@ -461,6 +461,7 @@ dat2 <- data.frame(prov.eff=prov.eff[index,1], Plot.data[,-8])
 Now we estimate the correlation between the population effect and each bioclimatic variable. We summarize the results in a correlation matrix plot.
 
 ```{r fig.height=7.5, fig.width=7.5}
+pairs(dat2, lower.panel=panel.smooth, upper.panel=panel.cor,
       diag.panel=panel.hist)
 ```
 
