@@ -56,9 +56,8 @@ require(nlme)
 
 source(system.file("extdata", "supplemental_R_functions.R", 
                             package = "LandGenCourse"))
-source(paste0(here::here(), "/data/panel.cor.r"))
-#source(system.file("extdata", "panel.cor.r", 
-#                            package = "LandGenCourse"))
+source(system.file("extdata", "panel.cor.r", 
+                            package = "LandGenCourse"))
 ```
 
 ## 2. Estimate genetic and non-genetic variance components from a common garden experiment
