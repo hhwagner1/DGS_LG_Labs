@@ -61,7 +61,7 @@ source(paste0(here::here(), "/data/panel.cor.r"))
 #                            package = "LandGenCourse"))
 ```
 
-## 2. Estimate genetic values and variance components for an observed phenotypic trait
+## 2. Estimate genetic and non-genetic variance components from a common garden experiment
 
 **Motivation**: A lot of genetics can be carried out without use of any molecular markers. Practitioners of empirical population genetics forget this quite often. A common garden allows us to create a standardized environment in which we minimize the influence of environment on the expression of a particular phenotypic trait. Phenotypic variation can be partitioned to genetic , environmental and residual components based on quantitative genetic theory. Further, we may also test for the presence of interaction between the genetic and environmental variation. The rationale of a common garden is to “standardize” the environment, thus phenotypic variation we observe is mainly due to genetic variation, even though environmental heterogeneity can never be completely eliminated and we still have to additionally control for it, e.g. using a block design (see below).
 
@@ -161,7 +161,7 @@ predictmeans::CookD(mod4)
 
 The residual plots did not indicate any major problem. Hence we can proceed with interpreting the results.
 
-### e) Effect size: estimate variance components
+### e) Estimate variance components
  
 How much of the variation in $d^{13}C$' is explained by the fixed and random effects? In models fitted with 'lm', we use the $R^2$ statistics to describe the total variance in the response explained by all the predictors in the model. In a mixed effects modeling context, there is no longer an obvious definition for $R^2$. Two approximate $R^2$ statistics have been implemented in the function ‘r.squaredGLMM’ from the package ‘MuMIn’ (which stands for multi-model inference):
 
@@ -194,7 +194,7 @@ Components <- data.frame(fam.var, prov.var, res.var)
 Components / sum(Components)
 ```
 
-Thus population and family each had a medium-size effect (> 9% variance explained) on d13c values.
+Compared to Cohen's (1988) effect sizes, population and family each had a medium-size effect (> 9% variance explained) on d13c values.
 
 ### f) Significance testing
 
@@ -206,6 +206,7 @@ The simplest way to test the significance of a random effect is to calculate the
 
 
 ```{r}
+#mod.noPop <- update(mod4, .~. -(1 | population))
 mod.noPop <- lmer(d13c ~ 1  + (1 | family) + block, data=phen, REML=TRUE)
 mod.noFam <- lmer(d13c ~ 1  + (1 | population) + block, data=phen, REML=TRUE)
 anova(mod4, mod.noPop, refit=FALSE)
@@ -227,47 +228,6 @@ mod4.ML <- lmer(d13c ~ 1  + (1 | population) + (1 | family) + block,
                 data=phen, REML=FALSE)
 car::Anova(mod4.ML, type="II", test.statistic="Chisq")
 ```
-
-### g) Describe and extract effects
-
-Which blocks, populations or trees had higher mean d13c values than others? To answer this question, we extract and plot the fixed and random effects. We'll start with the fixed effect for 'block'. 
-
-The effects are not simply the mean of all seedlings from the same block, but the marginal effect of 'block', i.e., estimates of the mean per block after accounting for all other effects (i.e., keeping population and family constant). 
-
-There are two ways to extract the block effects. The first is with function 'fixef'. This treats the first level of 'block' as a reference level and uses it to estimate the global intercept, then expresses the effect of the other blocks as deviations from the first block. 
-
-```{r}
-lme4::fixef(mod4)
-```
-
-A more convenient way to extract the effects is with function 'ggeffect' of the package 'ggeffects'. This provides a mean for each block.
-
-```{r}
-ggeffects::ggeffect(mod4, terms=c("block"))
-sjPlot::plot_model(mod4, type="eff", terms=c("block"))
-```
-
-The plot shows the predicted d13c value for each block (accounting for population and family) and a 95% confidence interval for each predicted value.
-
-Now let's plot the effects (mean with 95% confidence interval) for each random factor, accounting for all other factors. 
-
-Note: If the plots appear in the 'Plot' tab in RStudio, use the arrows to scroll between plots.
-
-```{r}
-sjPlot::plot_model(mod3, type="re")     
-```
-
-We can see that there are considerable differences between populations, where 'blk cyn' has the highest, and 'mt watson' the lowest mean. 
-
-We can extract the values with 'ranef'. Again, they are deviations from the global intercept (block 1). We will return to these values in the last part of the worked example to relate them to environmental site conditions.
-
-```{r}
-prov.eff <- lme4::ranef(mod4)$population
-fam.eff <- lme4::ranef(mod4)$family
-prov.eff
-head(fam.eff)
-```
-
 
 ## 3. Estimate trait heritability
 
@@ -443,16 +403,64 @@ Inspect the first and third elements of the list 'QstFst_out':
 
 ## 5. Assess correlation between trait and environment
 
-The last thing we want to do in this lab is to test for correlations between environmental data and the family and population effects for the trait $δ^{13}C$ that we estimated above. Recall that $δ^{13}C$ is related to water use efficiency, hence we might expect it to be related to a number of bioclimatic variables.
+**Motivation**: Similar to the fixed effects, estimates of the random effects can be also extracted from a mixed effects model and used in further analysis. Such estimates are called Best Linear Unbiased Predictions or BLUPs. They are technically predictions because when you fit a mixed effects model, initially only the mean and variance of the random effects are estimated. Then, the random effects or BLUPs for a given experimental unit (e.g., population or family) can be "predicted" from the estimated mean and variance (and the data).
 
-Here, we'll focus on the correlation matrix. See 'Week 6 Bonus Material' for a multiple regression and variation partitioning to parital out the effects of 'Climate' vs. 'Geography'.
+**Goals and background**: Here we will extract block, population and family effects from the model. Then we will correlate the plot-level bioclimatic data with the population effects to see if population differences in seedling d13C trait can be explained by the environment at the site where the mother tree stands. The underlying idea is to look if selection has made the population different. 
 
-### a) Correlation of family effect with environment
+### a) Describe and extract effects
+
+Which blocks, populations or trees had higher mean d13c values than others? To answer this question, we extract and plot the fixed and random effects. We'll start with the fixed effect for 'block'. 
+
+The effects are not simply the mean of all seedlings from the same block, but the marginal effect of 'block', i.e., estimates of the mean per block after accounting for all other effects (i.e., keeping population and family constant). 
+
+There are two ways to extract the block effects. The first is with function 'fixef'. This treats the first level of 'block' as a reference level and uses it to estimate the global intercept, then expresses the effect of the other blocks as deviations from the first block. 
+
+```{r}
+lme4::fixef(mod4)
+```
+
+A more convenient way to extract the effects is with function 'ggeffect' of the package 'ggeffects'. This provides a mean for each block.
+
+```{r}
+ggeffects::ggeffect(mod4, terms=c("block"))
+sjPlot::plot_model(mod4, type="eff", terms=c("block"))
+```
+
+The plot shows the predicted d13c value for each block (accounting for population and family) and a 95% confidence interval for each predicted value.
+
+Now let's plot the effects (mean with 95% confidence interval) for each random factor, accounting for all other factors. Again, these are not simply means of observed traits values but marginal effect, accounting for all other factors in the model. 
+
+Note: If the plots appear in the 'Plot' tab in RStudio, use the arrows to scroll between plots.
+
+```{r}
+sjPlot::plot_model(mod3, type="re")     
+```
+
+We can see that there are considerable differences between populations, where 'blk cyn' has the highest, and 'mt watson' the lowest mean. 
+
+We can extract the values with 'ranef'. Again, they are deviations from the global intercept (block 1). We are now ready to correlate the population effect to the environmental data.
+
+```{r}
+prov.eff <- lme4::ranef(mod4)$population
+fam.eff <- lme4::ranef(mod4)$family
+prov.eff
+head(fam.eff)
+```
+
+### b) Correlation of population effect with environment
+
+We have population effects estimated for 10 populations, and bioclimatic data for 30 plots (3 plots x 10 populations). If we used all 157 rows of the site data set, this would inflate our sample size. To avoid this, we first extract 30 unique rows (one per plot) from the site data 'WWP.ecogen@E'. Then we use' match' to find for each plot the corresponding population. This returns the row number ('index') and we use it to extract the corresponding population effect.
+
+```{r}
+Plot.data <- dplyr::distinct(data.frame(WWP.ecogen@E, 
+                    population=WWP.ecogen@S$population))
+index <- match(Plot.data$population, row.names(prov.eff))
+dat2 <- data.frame(prov.eff=prov.eff[index,1], Plot.data[,-8])
+```
+
+Now we estimate the correlation between the population effect and each bioclimatic variable. We summarize the results in a correlation matrix plot.
 
 ```{r fig.height=7.5, fig.width=7.5}
-index <- match(row.names(fam.eff), row.names(WWP.ecogen@E))
-dat <- data.frame(fam.eff=fam.eff[,1], WWP.ecogen@E[index,])
-pairs(dat, lower.panel=panel.smooth, upper.panel=panel.cor, 
       diag.panel=panel.hist)
 ```
 
@@ -461,25 +469,6 @@ How to read this plot:
 - Each diagonal cell shows the name and histogram of one variable.
 - Each cell in the upper triangle shows the correlation coefficient r, and the p-value for the correlation, between the two variables that define the corresponding row and column. (A larger font indicates a stronger correlation, though this seems to be inconsistent).
 - Each cell in the lower triangle shows a scatterplot of the two variables that define the corresponding row and column. A smooth regression line is shown in red.
-
-Questions:
-
-- Which site variables show the strongest correlation with the family effect?
-- Which site variables are significantly correlated with the family effect? 
-- Overall, does the family effect seem to be related to the environment?
-
-### b) Correlation of population effect with environment
-
-We have 10 populations, each with 3 plots. Here we first extract 30 unique rows (one per plot) from the environmental data. Then we find for each plot the corresponding population and extract its population effect.
-
-```{r fig.height=7.5, fig.width=7.5}
-Plot.data <- dplyr::distinct(data.frame(WWP.ecogen@E, 
-                    population=WWP.ecogen@S$population))
-index <- match(Plot.data$population, row.names(prov.eff))
-dat2 <- data.frame(prov.eff=prov.eff[index,1], Plot.data[,-8])
-pairs(dat2, lower.panel=panel.smooth, upper.panel=panel.cor, 
-      diag.panel=panel.hist)
-```
 
 Questions:
 
