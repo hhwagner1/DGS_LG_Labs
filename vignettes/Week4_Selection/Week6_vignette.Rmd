@@ -46,13 +46,14 @@ All required packages should have been installed already when you installed 'Lan
 ```{r message=FALSE, warning=TRUE}
 require(LandGenCourse)
 require(lme4)
-require(car)
-require(EcoGenetics)
+#require(car)
+#require(EcoGenetics)
 require(tibble)
-require(sjPlot)
-require(MuMIn)
-require(predictmeans)
-require(nlme)
+#require(sjPlot)
+#require(MuMIn)
+#require(predictmeans)
+#require(nlme)
+#require(QstFstComp)
 
 source(system.file("extdata", "supplemental_R_functions.R", 
                             package = "LandGenCourse"))
@@ -272,7 +273,6 @@ do the following using the mod_boot function in "supplemental_R_functions.R".
 Note: It will takes a few moments to run the first line! (The rest of the lab will run without this chunk of R code).  
 
 ```{r}
-require(lme4)
 par(mar=c(1, 2, 1, 1))
 h2_boot_out <- mod_boot(model = mod4, nboot = 1000)
 ci_95 <- quantile(h2_boot_out, probs = c(0.025, 0.50, 0.975))
@@ -342,8 +342,7 @@ Interpret the results.
 Load the data set 'WWP.ecogen'.
 
 ```{r}
-#data(WWP.ecogen, package="LandGenCourse")
-load(paste0(here::here(), "/data/WWP.ecogen.RData"))
+data(WWP.ecogen, package="LandGenCourse")
 ```
 
 This 'ecogen' object has information in the following slots:
@@ -483,6 +482,6 @@ Questions:
 #detach("package:adegenet", unload=TRUE)
 #detach("package:ade4", unload=TRUE)
 #detach("package:gstudio", unload=TRUE)
-detachAllPackages()
+LandGenCourse::detachAllPackages()
 ```
 
