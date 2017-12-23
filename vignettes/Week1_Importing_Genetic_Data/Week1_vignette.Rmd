@@ -289,5 +289,5 @@ The following code detaches all packages except for some basic ones:
 #detach("package:adegenet", unload=TRUE)
 #detach("package:ade4", unload=TRUE)
 #detach("package:gstudio", unload=TRUE)
-detachAllPackages()
+LandGenCourse::detachAllPackages()
 ```
