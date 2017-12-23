@@ -46,6 +46,122 @@ source(system.file("extdata", "supplemental_R_functions.R",
 
 ```
 
+
+### b) Estimate global $F_{ST}$ from SNP data
+
+Let’s examine differentiation for the SNP data using $F_{ST}$. There are a multitude of ways to do this, but we will use the varcomp.glob function from the 'hierfstat' package. 
+
+First, however, we need to re-format the data to the format that 'hierfstat' expects. This is easy with the function 'ecogen2hierfstat'.
+
+```{r}
+WWP.hierfstat <- EcoGenetics::ecogen2hierfstat(WWP.ecogen, pop='population', 
+                                  to_numeric=TRUE, nout=1)
+```
+
+Now we can calculate $F_{ST}$ with the function 'varcomp.glob'.
+```{r}
+fst <- hierfstat::varcomp.glob(levels = WWP.hierfstat[,1], 
+                               loci = WWP.hierfstat[,-1], diploid = T)
+head(fst$loc)
+fst$overall
+fst$F
+```
+
+Note: You can also explore bootstrapping across loci to get a confidence interval using the boot.vc() function.
+
+Now, let’s look at the output. The object fst has three elements. 
+
+- 'loc': The first element is matrix of variance components for each SNP. The columns of this matrix are levels you used from the highest to the lowest (left to right). For us, that means column 1 is the variance component for population, column 2 is the variance component for individual, and column 3 is the variance component for the error (or residual). 
+- 'overall': The second element is the sum of the columns. 
+- 'F': The last element is a matrix of F-statistics. These work by using as subscripts the column title relative to the row title, so the first value on the first line is the F- statistic for population relative to total (i.e. $F_{ST}$). It is calculated based on the variance components from $overall as:
+
+$$F_{pop,tot} = \frac{\sigma^{2}_{pop}}
+{\sigma^{2}_{pop}+\sigma^{2}_{ind}+\sigma^{2}_{error}}$$
+
+## Regression
+
+### b) Multiple regression model
+
+First, we need to combine the trait, geographic and environmental data into a single data frame 'phen_env'. At the same time, we'll use the function 'scale' to scale the geographic and environmental variables, so that each has mean = 0 and a sd = 1. 
+
+```{r}
+phen_env <- data.frame(d13c=scale(WWP.ecogen@P[,1]), 
+                       scale(WWP.ecogen@XY), scale(WWP.ecogen@E))
+```
+
+Fortunately, from the way we imported the data into the 'ecogen' object (with matching row labels), we know that the data in all slots of WWP are ordered by the same variable 'family', so that their rows correspond.
+
+
+
+Next, let’s use multiple regression to test the effect of these variables on $δ^{13}C$. 
+
+```{r}
+mod1_env <- lm(d13c ~ longitude + latitude + elev + max_rad + tmax_july + 
+                 tmin_jan + ann_ppt + gdd_aug + AWS050, data = phen_env)
+summary(mod1_env)
+```
+
+This model shows us the effect of all variables on $δ^{13}C$, given all other variables in the model. Note that the estimated slope coefficients 'Estimate', and their p-values 'Pr(>|t|)' may differ from the results of a simple regression analysis (with a single predictor in each model) due to the correlation among predictor variables.
+
+It is important to understand that these estimates and p-values are based on type II sums of squares. This means that for each predictor, they are estimated as if it was added last to the model, thus accounting for the effect of all other variables in the model.
+
+- Is this multiple regression model statistically significant? If so, why? 
+- Which variables have a statistically significant effect, given all other variables in the model?
+- Which variables provide the largest effects (use the column labeled 'Estimate', which is the partial regression coefficient because we used scaled variables)? Is this consistent with the correlation results?
+
+### c) Variation partitioning
+
+What is the relative contribution of climate vs. geography to variation in the trait $δ^{13}C$? 
+
+This can be assessed with variation partitioning, using the function 'varpart' from package 'vegan'. It takes three (or more) data frames. The first contains the response variable(s), here the trait. The others contain groups of predictors, here the bioclimatic variables and the spatial coordinates, for partitioning the explained variance in the response. We set the argument transfo="standardize" to force all variables to be standardized.
+
+```{r}
+par(mar=c(1, 1, 1, 1))
+mod <- vegan::varpart(WWP.ecogen@P$d13c, WWP.ecogen@E, WWP.ecogen@XY, 
+                      transfo="standardize")
+mod
+plot(mod)
+```
+
+The result is a partition table that lists the size of different fractions of variance. Interpretation should be based on adjusted $R^2$ values. Note that negative $R^2$ values should be interpreted as zero. 
+
+The figure is a graphical representation of the fractions. Here, X1 is the set of bioclimatic variables ('climate'), and X2 is the spatial coordinates ('geography'). 
+
+Fraction [a+b] is the percent of variance in the trait that can be explained by climate. Some of this, however, might also be explained by geography. Specifically, fration [b] is the shared variance between climate and geography, and [b+c] is the percent of variance in the trait that can be explained by geography. Hence, the fraction that can only be explained by climate, but not by geography, is fraction [a]. Similarly, fraction [c] can only be explained by geography but not by climate.
+
+Looks like climate alone ([a] = 47%) explains about three times as much as geography alone ([c] = 15.5%). Together, they explain [a+b+c] = 59% of variation in the trait. Surprisingly, there was no shared variance between climate and geography (b = 0).
+
+Finally, we can test whether each component is statistically different from zero.
+
+First we fit models for all testable fractions (see last column in output above). In a way, we are now making explicit what the function 'varpart' did implicitly. We use the function 'rda' (for 'redundancy analysis') to fit a series of regression models. RDA can take multiple response variables (e.g., allele frequencies of multiple loci, or species abundances in a community), which results in multivariate regression. Here, we have a single response variable (the trait), so each model boils down to a multiple regression with one response and multiple predictor variables. 
+
+The first argument of 'rda' is the response, the second argument is the set of predictors, and the third is an optional set of predictors that should be used for conditioning (i.e., their effect is accounted for before regressing the response on the second set).
+
+```{r}
+ab <- vegan::anova.cca(vegan::rda(WWP.ecogen@P$d13c, WWP.ecogen@E,  
+                                  transfo="standardize"))
+bc <- vegan::anova.cca(vegan::rda(WWP.ecogen@P$d13c, WWP.ecogen@XY, 
+                                  traata.frame(WWP.ecogen@E, WWP.ecogen@XY),
+                                   transfo="standardize"))
+a <- vegan::anova.cca(vegan::rda(WWP.ecogen@P$d13c, WWP.ecogen@E, 
+                                 WWP.ecogen@XY, transfo="standardize"))
+b <- vegan::anova.cca(vegan::rda(WWP.ecogen@P$d13c, WWP.ecogen@XY, 
+                                 WWP.ecogen@E, transfo="standardize"))
+```
+
+Now we can extract the p-values. Looks like all testable fractions are statistically significant!nsfo="standardize"))
+abc <- vegan::anova.cca(vegan::rda(WWP.ecogen@P$d13c, 
+                                   d
+
+```{r}
+c(ab=ab$"Pr(>F)"[1], bc=bc$"Pr(>F)"[1], abc=abc$"Pr(>F)"[1], 
+  a=a$"Pr(>F)"[1], b=b$"Pr(>F)"[1])
+```
+
+
+#OLD
+
+
 ## 2. Estimate $F_{ST}$ from SNP data
 
 **Motivation**: Now that we have shown that genetic variation for $δ^{13}C$ within populations is significantly greater than zero (i.e. $h^2 > 0$), that differentiation for $δ^{13}C$ is statistically greater than zero (i.e. $Q_{ST} > 0$), and that climate, and to a lesser degree geography, is correlated with $δ^{13}C$ values, we can formally test whether or not differentiation for $δ^{13}C$ is unexplainable due to neutral processes such as genetic drift and gene flow. The general idea is use a set of genetic markers we think primarily reflects neutral processes to estimate what $Q_{ST}$ should be without any form of natural selection operating in our system. To do that, we will use 164 SNPs sampled from gene regions that have no apparent functional connection to $δ^{13}C$. This will allow us to conclude that the differentiation we see is not just different from zero (done before), but different than expectations from a neutral model.
