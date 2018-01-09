@@ -394,8 +394,7 @@ corm.GD.pop <- lapply(GD.pop, function(x) EcoGenetics::eco.cormantel(M = x, XY =
 Next, we extract for each genetic distance matrix the observed value of the Mantel correlation for the first distance class and its p-value.
 
 ```{r}
-data.frame(obs = sapply(corm.GD.pop, function(x) EcoGenetics::ecoslot.OUT(x)[[1]][1,2]),
-           pval = sapply(corm.GD.pop, function(x) EcoGenetics::ecoslot.OUT(x)[[1]][1,4]))
+t(sapply(corm.GD.pop, function(x) EcoGenetics::ecoslot.OUT(x)[[1]][1,c(2,4)]))
 ```
 
 Compare the p-values: some genetic distance measures resulted in significant spatial autocorrelation (indicating IBD), others not! Generally, those with significant p-values showed stronger Mantel correlation values 'obs' for the first distance class.
