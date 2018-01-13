@@ -375,8 +375,6 @@ The allele frequencies of all alleles from the same locus (e.g., A.1, A.2 and A.
 apply(Freq, MARGIN = 1, FUN = sum)    # Just checking
 ```
 
-
-
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 LandGenCourse::detachAllPackages()
 ```
