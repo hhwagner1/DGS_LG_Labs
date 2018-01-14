@@ -1,8 +1,6 @@
 ---
 title: "Week 5: Spatial Statistics"
-author: 
-- "Helene Wagner"
-- "Marie-Josee Fortin"
+author: "Helene Wagner"
 date: "`r Sys.Date()`"
 show_toc: true
 output:
@@ -99,6 +97,16 @@ Snails.ecogen
 Import into 'genind' object (package 'adegenet'): there is a dedicated function, but we need to separately declare the variable that represents the populations and write it into the @pop slot of the 'genind' object. 
 
 ```{r}
+#Snails.ecopop <- EcoGenetics::ecogen2ecopop(Snails.ecogen, hier="SITE")
+#Snails.ecogen <- eco.fill_ecogen_with_df(Snails.ecogen, "SITE", Snails.site.df$SITE, 
+#                                XY = NULL, P = NULL, E = Snails.site.df[,-c(1:11)], 
+#                                C = NULL, bind_columns = FALSE)
+#row.names(Snails.site.df) <- Snails.site.df$SITE
+#Snails.ecopop@E <- Snails.site.df[,-c(1:11)]
+#test <- eco.fill_ecogen_with_ecopop(Snails.ecopop, Snails.ecogen, "SITE", 
+#                            what = c("all", "XY", "P", "E", "C"), bind_columns = FALSE)
+
+
 Snails.genind <- EcoGenetics::ecogen2genind(Snails.ecogen)
 Snails.genind@pop <- Snails.ecogen@S$SITE
 ```
