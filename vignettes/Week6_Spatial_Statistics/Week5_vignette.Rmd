@@ -41,37 +41,33 @@ All required packages should have been installed already when you installed 'Lan
 #require(ade4)
 require(LandGenCourse)
 #require(tibble)
-#require(EcoGenetics)
+require(EcoGenetics)
 #require(spdep)
-require(dplyr)
 #require(SoDA)
 ```
 
 ## 2. Data import and manipulatoin
 
-### a) Import and select data
+### a) Import and subset site data
 
-We will only need one year's data from each site:
-
-- From the sites data, we select the rows (combinations of site and year) with 'Spatial==TRUE'.
-- From the genetic data, we select the rows (individuals) with matching 'SiteID' (which is a combination of site and year).
-
-Note: 'dd.site' is a SpatialPointsDataFrame, which is an S4 object. We can't use the usual data manipulation functions (developed for S3 objects) on such an object, unless they have been re-programmed as S4 functions to handle the specific object type. As a work-around, we convert dd.site to a data frame that contains both coordinates and site data, using the function 'cbind' to combine the columns.
+We will only need one year's data from each site. Like last week, we select the rows (combinations of site and year) from the site data with 'Spatial==TRUE'.
 
 ```{r}
 data(dd.site)
-dd.site
-Snails.site.df <- cbind(dd.site@coords, dd.site@data) %>% 
-  dplyr::filter(Spatial==TRUE)
-tibble::as.tibble(Snails.site.df)
+dd.spatial <- dd.site[dd.site$Spatial==TRUE,]
+#Snails.site.df <- as.data.frame(dd.spatial)
 ```
 
-For some analyses, we need to convert geographic coordinates from latitude-longitude format into metric coordinates to facilitate the calcultion of geographic distances. We add the metric coordinates ("x" and "Y") at the beginning of the data frame (first two columns) by binding the columns with the coordinates with the columns of the site data frame. 
+For some analyses, we need to convert geographic coordinates from latitude-longitude format into metric coordinates to facilitate the calcultion of geographic distances. Here we add the metric coordinates ("x" and "Y") to the @data slot. We use 'cbind' to bind the columns with the coordinates with the columns in dd.spaital@data. Because 'xy' is listed first, it will be inserted as the first two columns. 
 
 ```{r}
-xy <- SoDA::geoXY(Snails.site.df$Latitude, Snails.site.df$Longitude)
-Snails.site.df <- cbind(xy, Snails.site.df)
+xy <- SoDA::geoXY(dd.spatial@coords[,'Latitude'], 
+                  dd.spatial@coords[,'Longitude'])
+dd.spatial@data <- cbind(xy, dd.spatial@data)
+tibble::as.tibble(dd.spatial@data)
 ```
+
+### b) Import and subset genetic data
 
 Next, we import and extract the corresponding genetic data.
 
@@ -80,13 +76,23 @@ data(dd.ecogen, package="LandGenCourse")
 dd.ecogen
 ```
 
-Note: dd.ecogen is an 'ecogen' object (S4). The 'EcoGenetics' package contains functions for data manipulation similar to what we are used to from S3 objects. For instance, we can use the square brackets for slicing an 'ecogen' object (this would not work for a SpationalPointsDataFrame).
+Before we can select individuals with the 'Spatial' attribute from the site data, we need to copy the site data into the 'E' slot of ecogen object. This is quite easy with the function 'eco.fill_ecogen_with_df'. We'll copy the coordinates into the 'XY' slot as well. Some clarification of the arguments:
 
-Here, we first define a vector 'a' that is 'TRUE' if the value of 'SiteID' of the genetic data is among the values included in our subset of the site data, 'Snails.site.df'. Then we reduce the 'ecogen' object to those rows (individuals) fulfilling the condition. This reduces the number of individuals from 1270 to 749.
+- The argument 'pop' refers to the **name** of the column in @S slot with population names that should be used for joining the data. 
+- The argument 'pop_levels' refers to the **vector** in the site data that contains the population names. This should be an ID, where each value occurs only once. Here, we use the variable 'SiteID' from the @data tab of dd.spatial.
 
 ```{r}
-a <- is.element(dd.ecogen@S$SiteID, Snails.site.df$SiteID)
-Snails.ecogen <- dd.ecogen[a,]
+dd.ecogen <- EcoGenetics::eco.fill_ecogen_with_df(dd.ecogen,
+             pop="SiteID", pop_levels=dd.site@data$SiteID, 
+             XY = dd.site@coords, E = dd.site@data)
+```
+
+Now we can select individuals in dd.ecogen by the attribute 'Spatial'. 
+
+Note: it is saver to specify ecogen object slots with double brackets [["E"]] than with the slot symbol @E.
+
+```{r}
+Snails.ecogen <- dd.ecogen[dd.ecogen[["E"]]$Spatial == TRUE,]
 Snails.ecogen
 ```
 
@@ -98,14 +104,6 @@ Import into 'genind' object (package 'adegenet'): there is a dedicated function,
 
 ```{r}
 #Snails.ecopop <- EcoGenetics::ecogen2ecopop(Snails.ecogen, hier="SITE")
-#Snails.ecogen <- eco.fill_ecogen_with_df(Snails.ecogen, "SITE", Snails.site.df$SITE, 
-#                                XY = NULL, P = NULL, E = Snails.site.df[,-c(1:11)], 
-#                                C = NULL, bind_columns = FALSE)
-#row.names(Snails.site.df) <- Snails.site.df$SITE
-#Snails.ecopop@E <- Snails.site.df[,-c(1:11)]
-#test <- eco.fill_ecogen_with_ecopop(Snails.ecopop, Snails.ecogen, "SITE", 
-#                            what = c("all", "XY", "P", "E", "C"), bind_columns = FALSE)
-
 
 Snails.genind <- EcoGenetics::ecogen2genind(Snails.ecogen)
 Snails.genind@pop <- Snails.ecogen@S$SITE
@@ -127,47 +125,50 @@ Snails.gstudio <- EcoGenetics::ecogen2gstudio(Snails.ecogen)
 tibble::as.tibble(Snails.gstudio)
 ```
 
-## 3. Calculate genetic distances
+## 3. Calculate genetic distances 
 
 Here we'll calcuate a number of different measures of genetic distance, using functions from several packages. Adding the package name to each distance matrix name helps keeping track of methods used.
 
 Note: Some functions provide an option 'linearized = TRUE' to linearize distances 'd' by calculating 'd/(1-d)'. This should result in more linear relationships when plotted or correlated against geographic distance.Here we don't linearize, we can do so later manually.
 
-### a) Genetic distance among individuals (PopGenReport, adegenet)
+
+### a) Genetic distances calculated from genind object
+
+Pairwise Fst with package 'hierfstat':
 
 ```{r}
-GD.ind.smouse <- PopGenReport::gd.smouse(Snails.genind, verbose=FALSE)  # GenAlEx
-GD.ind.propShared <- adegenet::propShared(Snails.genind)     
+GD.pop.PairwiseFst.hierfstat <- hierfstat::pairwise.fst(Snails.genind, 
+                                pop = NULL, res.type = c("dist"))
 ```
-
-### b) Genetic distance among local populations (PopGenReport, adegenet, mmod)
+ 
+Proportion of shared alleles with package 'PopGenReport':
 
 ```{r}
 GD.pop.propShared <- PopGenReport::pairwise.propShared(Snails.genind)
+```
+ 
+Several distance matrices with package 'adegenet':
+
+```{r}
 GD.pop.Nei <- adegenet::dist.genpop(Snails.genpop, method=1)   
 GD.pop.Edwards <- adegenet::dist.genpop(Snails.genpop, method=2)
-GD.pop.Reynolds <- adegenet::dist.genpop(Snails.genpop, method=3)  # Co-ancestry coef
+GD.pop.Reynolds <- adegenet::dist.genpop(Snails.genpop, method=3)  
 GD.pop.Rogers <- adegenet::dist.genpop(Snails.genpop, method=4)  
 GD.pop.Provesti <- adegenet::dist.genpop(Snails.genpop, method=5)
+```
 
+Additional distance matrices with package 'mmod':
+
+```{r}
 GD.pop.Joost <- mmod::pairwise_D(Snails.genind, linearized = FALSE)
 GD.pop.Hedrick <- mmod::pairwise_Gst_Hedrick(Snails.genind, linearized = FALSE)
 GD.pop.NeiGst <- mmod::pairwise_Gst_Nei(Snails.genind, linearized = FALSE)
 ```
  
-### c) Pair-wise Fst (hierfstat)
 
-Pair-wise Fst values are calculated at the population level.
-
-```{r}
-GD.pop.PairwiseFst.hierfstat <- hierfstat::pairwise.fst(Snails.genind, pop = NULL, 
-                                        res.type = c("dist"))
-```
-
-### d) More distances with gstudio
+### b) More distance matrices with 'gstudio'
 
 ```{r}
-GD.ind.AMOVA.gstudio <- gstudio::genetic_distance(Snails.gstudio, mode = "AMOVA")
 GD.pop.Euclidean.gstudio <-gstudio::genetic_distance(Snails.gstudio, mode = "Euclidean", stratum="SITE")
 GD.pop.cGD.gstudio <-gstudio::genetic_distance(Snails.gstudio, mode = "cGD", stratum="SITE")
 GD.pop.Nei.gstudio <-gstudio::genetic_distance(Snails.gstudio, mode = "Nei", stratum="SITE")
@@ -175,25 +176,11 @@ GD.pop.Dps.gstudio <-gstudio::genetic_distance(Snails.gstudio, mode = "Dps", str
 GD.pop.Jaccard.gstudio <-gstudio::genetic_distance(Snails.gstudio, mode = "Jaccard", stratum="SITE")
 ```
 
-### e) Assemble (and save) distance matrices
+### c) Assemble (and save) distance matrices
 
-We'll store the genetic distances in two lists:
-
-- GD.ind: individual-level genetic distances
-- GD.pop: population-level genetic distances
+We'll store the population-level genetic distances in a list 'GD.pop'.
 
 Note: a few measures return similarities (scaled between 0 and 1) instead of distances. For instance, 'proporition of shared alleles' is 1 if the alleles are identical, and zero of no alleles are shared. We convert these values to distances by subtracting them from 1.
-
-Individual level:
-
-```{r}
-GD.ind <- list(Smouse.PopGenReport = GD.ind.smouse,
-               propShared.adegenet = as.dist(1 - GD.ind.propShared),
-               Amova.gstudio = as.dist(GD.ind.AMOVA.gstudio))
-round(cor(sapply(GD.ind, function(ls) as.vector(ls))),2)
-```
-
-Population level: 
 
 ```{r}
 GD.pop <- list(pairwiseFst.hierfstat = GD.pop.PairwiseFst.hierfstat,
@@ -219,14 +206,34 @@ Consider the correlations printed above.
 - Correlations are high in general, except for conditional genetic distance (cGD) (see Week 13). 
 - There are some duplicate measures (with correlation = 1).
 
+### d) Genetic distances among individuals 
+
+This part is commented out with '#' as it takes longer to calculate. 
+
+```{r}
+#GD.ind.smouse <- PopGenReport::gd.smouse(Snails.genind, verbose=FALSE) 
+#GD.ind.propShared <- adegenet::propShared(Snails.genind)    
+#GD.ind.AMOVA.gstudio <- gstudio::genetic_distance(Snails.gstudio, mode = "AMOVA")
+```
+
+Assemble individual-level distance matrices:
+
+```{r}
+#GD.ind <- list(Smouse.PopGenReport = GD.ind.smouse,
+#               propShared.adegenet = as.dist(1 - GD.ind.propShared),
+#               Amova.gstudio = as.dist(GD.ind.AMOVA.gstudio))
+#round(cor(sapply(GD.ind, function(ls) as.vector(ls))),2)
+```
+
+### e) Export genetic distance matrices
+
 Optional: Use 'save' to save an R object to your file system, and 'load' to read it in again. Note: the default setting is that 'save' will overwrite existing files with the same name.
+
+The code is commented out with '#'. To run it, remove the '#'. The first part creates a folder 'output' in your project folder if it does not yet exist. The function 'save' writes the list 'GD.pop' into a file "GD.pop.RData", and the function 'load' imports it again. 
 
 ```{r}
 #require(here)
 #if(!dir.exists(paste0(here(),"/output"))) dir.create(paste0(here(),"/output"))
-
-#save(GD.ind, file = paste0(here(),"/output/GD.ind.RData"))
-#load(paste0(here(),"/output/GD.ind.RData"))
 
 #save(GD.pop, file = paste0(here(),"/output/GD.pop.RData"))
 #load(paste0(here(),"/output/GD.pop.RData"))
@@ -234,13 +241,13 @@ Optional: Use 'save' to save an R object to your file system, and 'load' to read
 
 ## 4. Perform a Mantel test to test for IBD
 
-First, we can calculate geographic distances with the 'dist' function.
+First, we calculate geographic (Euclidean) distances 'Dgeo' with the 'dist' function.
 
 ```{r}
-Dgeo <- dist(Snails.site.df[,1:2])
+Dgeo <- dist(dd.spatial@data[,c("X", "Y")])
 ```
 
-Then we perform a Mantel test for one population-level measure of genetic distance (here: proportion of shared alleles.
+Then we perform a Mantel test for one population-level measure of genetic distance (here: proportion of shared alleles).
 
 ```{r}
 IBD <- ade4::mantel.randtest(GD.pop$propShared.PopGenReport,Dgeo)
@@ -277,19 +284,22 @@ for(i in 1:length(GD.pop))
 }
 ```
 
+There seems to be a general pattern across distance matrices, with a slight increas of genetic distance over shorter distances and then som decrease over large distances. The odd one out is again conditional genetic distance cGD (for good reason: see Week 13).
+
 ## 5. Create Mantel correlogram for genetic data
 
 ### a) Create a first Mantel correlogram
 
 Here, we'll create a population-level Mantel correlogram with the proportion of shared alleles.
 
-To calculate the geographic distances, we need to consider the type of spatial coordinates. Here we have Latitude-Longitude data, and these need to be transformed to calculate distances. The function 'eco.cormantel' has an option 'latlon=TRUE' that takes care of this. To uses this option, the coordinates must be in a matrix or data frame with the longitude in the first column and the latitude in the second. 
+The function 'eco.cormantel' has an option 'latlon=TRUE' that takes care of the distance calculation from lat-lon coordinates. To uses this option, the coordinates must be in a matrix or data frame with the longitude in the first column and the latitude in the second. Here we can directly use the @coords slot of dd.spatial. 
 
 The biological hypothesis of isolation-by-distance postulates that genetic distance increases with geographic distance. Hence it makes sense to use a one-sided alternative. Somewhat counter-intutitively, we use 'alternative="less"' to test for positive spatial autocorrelation.
 
 
 ```{r}
-corm <- EcoGenetics::eco.cormantel(M = GD.pop$propShared.PopGenReport, XY = Snails.site.df[,c("Longitude", "Latitude")],  nsim = 199, latlon=TRUE, alternative="less")
+corm <- EcoGenetics::eco.cormantel(M = GD.pop$propShared.PopGenReport, 
+        XY = dd.spatial@coords,  nsim = 199, latlon=TRUE, alternative="less")
 corm
 ```
 
@@ -330,13 +340,17 @@ There are several options of the 'eco.cormantel' function to modify the definiti
 - 'size': number of individuals per class
 - 'bin': rule for constructing intervals if no other parameters provided (default: Sturge's rule)
 
-The easiest ones to modify are either 'nclass' or 'size'. Here we use 'size' to specify that there should be at least 30 (or 100) pairs in each distance class.
+The easiest ones to modify are either 'nclass' or 'size'. Here we use 'size' to specify that there should be at least 30 (better: 100) pairs in each distance class.
 
 ```{r fig.show='hold'}
-corm.20 <- EcoGenetics::eco.cormantel(M = GD.pop$propShared.PopGenReport, XY = Snails.site.df[,c("Longitude", "Latitude")],  nsim = 199, latlon=TRUE, alternative="less", size=20)
+corm.20 <- EcoGenetics::eco.cormantel(M = GD.pop$propShared.PopGenReport, 
+           XY = dd.spatial@coords,  nsim = 199, latlon=TRUE,
+           alternative="less", size=20)
 EcoGenetics::ecoslot.OUT(corm.20)
 
-corm.50 <- EcoGenetics::eco.cormantel(M = GD.pop$propShared.PopGenReport, XY = Snails.site.df[,c("Longitude", "Latitude")],  nsim = 199, latlon=TRUE, alternative="less", size=50)
+corm.50 <- EcoGenetics::eco.cormantel(M = GD.pop$propShared.PopGenReport, 
+           XY = dd.spatial@coords,  nsim = 199, latlon=TRUE,
+           alternative="less", size=50)
 EcoGenetics::ecoslot.OUT(corm.50)
 
 EcoGenetics::eco.plotCorrelog(corm.20)
@@ -374,9 +388,12 @@ Here we'll use two ways to account for potential non-linearity:
 
 ```{r}
 D <- GD.pop$propShared.PopGenReport / (1 - GD.pop$propShared.PopGenReport)
-corm.lin <- EcoGenetics::eco.cormantel(M = D, XY = Snails.site.df[,c("Longitude", "Latitude")],  nsim = 99, latlon=TRUE, alternative="less")
+corm.lin <- EcoGenetics::eco.cormantel(M = D, XY = dd.spatial@coords,  
+            nsim = 99, latlon=TRUE, alternative="less")
 
-corm.rank <- EcoGenetics::eco.cormantel(M = GD.pop$propShared.PopGenReport, XY = Snails.site.df[,c("Longitude", "Latitude")],  nsim = 199, latlon=TRUE, alternative="less", method="spearman")
+corm.rank <- EcoGenetics::eco.cormantel(M = GD.pop$propShared.PopGenReport, 
+             XY = dd.spatial@coords,  nsim = 199, latlon=TRUE,
+             alternative="less", method="spearman")
 
 c(Sturge.pval = EcoGenetics::ecoslot.OUT(corm)[[1]][1,4],
   lin.pval = EcoGenetics::ecoslot.OUT(corm.lin)[[1]][1,4],
@@ -387,7 +404,7 @@ c(Sturge.obs = EcoGenetics::ecoslot.OUT(corm)[[1]][1,2],
   rank.obs = EcoGenetics::ecoslot.OUT(corm.rank)[[1]][1,2])
 ```
 
-Linearization actually weakened the relationship, whereas the rank correlation provided essentially the same result as the linear("pearson") correlation. Non-linearity can thus not explain the absence of significant positive spatial autocorrelation.
+Linearization actually weakened the relationship, whereas the rank correlation provided essentially the same result as the linear ("pearson") correlation. Non-linearity can thus not explain the absence of significant positive spatial autocorrelation.
 
 ### d) Alternative measures of genetic distances
 
@@ -396,7 +413,9 @@ Which measure of genetic distance would provide the strongest Mantel correlation
 Here we will cycle through all genetic distance matrices in 'GD.pop' and calculate a Mantel correlogram with Sturge's rule (not linearized, method="pearson"). This may take a while.
 
 ```{r}
-corm.GD.pop <- lapply(GD.pop, function(x) EcoGenetics::eco.cormantel(M = x, XY = Snails.site.df[,c("Longitude", "Latitude")],  nsim = 199, latlon=TRUE, alternative="less"))
+corm.GD.pop <- lapply(GD.pop, function(x) EcoGenetics::eco.cormantel(M = x, 
+                      XY = dd.spatial@coords,  nsim = 199, latlon=TRUE,
+                      alternative="less"))
 ```
 
 Next, we extract for each genetic distance matrix the observed value of the Mantel correlation for the first distance class and its p-value.
@@ -413,7 +432,7 @@ Let's plot the Mantel correlogram for 'Nei.adegenet'. Statistically significant 
 EcoGenetics::eco.plotCorrelog(corm.GD.pop$Nei.adegenet)
 ```
 
-The statistically significan spatial autocorrelation was limited to the first distance lag. 
+The statistically significant spatial autocorrelation was limited to the first distance lag. 
 
 ## 6.Specify spatial weights and calculate Moran's I
 
@@ -437,21 +456,23 @@ The function 'chooseCN' (package: adegenet) provides an interface for choosing a
 
 Here we use types 1 - 6 to define neighbors in different ways. Then we plot each graph in geographic space. Lines indicate pairs of sites classified as neighbors. 
 
-```{r fig.width=8, fig.height=12, fig.show='hold'}
-nb.del <- adegenet::chooseCN(xy = Snails.site.df[,1:2], result.type = "nb", plot.nb = FALSE, type = 1)
-nb.gab <- adegenet::chooseCN(xy = Snails.site.df[,1:2], result.type = "nb", plot.nb = FALSE, type = 2)
-nb.rel <- adegenet::chooseCN(xy = Snails.site.df[,1:2], result.type = "nb", plot.nb = FALSE, type = 3)
-nb.mst <- adegenet::chooseCN(xy = Snails.site.df[,1:2], result.type = "nb", plot.nb = FALSE, type = 4)
-nb.nbd <- adegenet::chooseCN(xy = Snails.site.df[,1:2], result.type = "nb", plot.nb = FALSE, type = 5, d1=100, d2=15000)
-nb.4nn <- adegenet::chooseCN(xy = Snails.site.df[,1:2], result.type = "nb", plot.nb = FALSE, type = 6, k = 4)
+Note: this function expects metric spatial coordinates (e.g., UTM). Hence we use the columns 'X' and 'Y' (first two columns) that we added to dd.spatial@data.
+
+```{r fig.width=8, fig.height=6, fig.show='hold'}
+nb.del <- adegenet::chooseCN(xy = dd.spatial@data[,1:2], result.type = "nb", plot.nb = FALSE, type = 1)
+nb.gab <- adegenet::chooseCN(xy = dd.spatial@data[,1:2], result.type = "nb", plot.nb = FALSE, type = 2)
+nb.rel <- adegenet::chooseCN(xy = dd.spatial@data[,1:2], result.type = "nb", plot.nb = FALSE, type = 3)
+nb.mst <- adegenet::chooseCN(xy = dd.spatial@data[,1:2], result.type = "nb", plot.nb = FALSE, type = 4)
+nb.nbd <- adegenet::chooseCN(xy = dd.spatial@data[,1:2], result.type = "nb", plot.nb = FALSE, type = 5, d1=100, d2=15000)
+nb.4nn <- adegenet::chooseCN(xy = dd.spatial@data[,1:2], result.type = "nb", plot.nb = FALSE, type = 6, k = 4)
 
 par(mfrow=c(2,3), mai=c(0.1,0.1,0.1, 0.1))
-plot(nb.del, coords=Snails.site.df[,1:2]); title(main="Delaunay")
-plot(nb.gab, coords=Snails.site.df[,1:2]); title(main="Gabriel")
-plot(nb.rel, coords=Snails.site.df[,1:2]); title(main= "Rel. neighbors")
-plot(nb.mst, coords=Snails.site.df[,1:2]); title(main= "Min. spanning tree")
-plot(nb.nbd, coords=Snails.site.df[,1:2]); title(main = "Neighbor distancer")
-plot(nb.4nn, coords=Snails.site.df[,1:2]); title(main = "4 nearest neighbors")
+plot(nb.del, coords=dd.spatial@data[,1:2]); title(main="Delaunay")
+plot(nb.gab, coords=dd.spatial@data[,1:2]); title(main="Gabriel")
+plot(nb.rel, coords=dd.spatial@data[,1:2]); title(main= "Rel. neighbors")
+plot(nb.mst, coords=dd.spatial@data[,1:2]); title(main= "Min. spanning tree")
+plot(nb.nbd, coords=dd.spatial@data[,1:2]); title(main = "Neighbor distancer")
+plot(nb.4nn, coords=dd.spatial@data[,1:2]); title(main = "4 nearest neighbors")
 par(mfrow=c(1,1))
 ```
 
@@ -472,7 +493,8 @@ Each row contains the weights for the neighbors of one site. We see that the fif
 ### c) Calculating and testing Moran's I
 
 ```{r}
-spdep::moran.test(Snails.site.df$RA, spdep::nb2listw(nb.gab), alternative="greater")
+spdep::moran.test(dd.spatial$RA, spdep::nb2listw(nb.gab),
+                  alternative="greater")
 ```
 
 The test statistic is 0.17, and the p-value for a one-sided alternative "greater" (i.e., positive spatial autocorrelation) is 0.0834. The autocorrelation in the variable "RA" was too weak to be statistically significant. 
@@ -480,13 +502,19 @@ The test statistic is 0.17, and the p-value for a one-sided alternative "greater
 Let's do this for all response and predictor variables and extract the value of the Moran I statistics (for first neighbors) and its p-value.
 
 ```{r}
-Snails.moran <- lapply(Snails.site.df[,c(13:16, 18:23, 25)], 
-                       function(x) spdep::moran.test(x, spdep::nb2listw(nb.gab), alternative="two.sided"))
+Snails.moran <- lapply(dd.spatial@data[,c(11:14, 16:21, 23)], 
+                       function(x) spdep::moran.test(x,
+                       spdep::nb2listw(nb.gab), alternative="two.sided"))
 round(data.frame(obs = sapply(Snails.moran, function(x) as.vector(x$estimate[1])),  
 p.value = sapply(Snails.moran, function(x) x$p.value)),3)
 ```
 
 The variables vary a lot in their strength of spatial autocorrelation.
+
+- Are you surprised that RA, He, FST.GESTE do not show statistically significant spatial autocorrelation?
+- Does this fit with the Mantel correlogram from above, and with the AMOVA results from last week? What can you say about the strength of IBD in this system?
+- Are you surprised that 'C' and 'D' showed strong spatial autocorrelation? Why might this be expected?
+- What about 's' and 'Stab'? Check the help file for their definition: ?dd.site
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 LandGenCourse::detachAllPackages()
