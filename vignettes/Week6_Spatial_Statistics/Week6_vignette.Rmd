@@ -1,8 +1,6 @@
 ---
 title: "Week 6: Spatial Statistics"
-author: 
-- "Marie-Josee Fortin"
-- "Helene Wagner"
+author: "Helene Wagner"
 date: "`r Sys.Date()`"
 show_toc: true
 output:
@@ -47,13 +45,12 @@ All required packages should have been installed already when you installed 'Lan
 ```{r message=FALSE, warning=TRUE}
 require(LandGenCourse)
 #require(EcoGenetics)
-#require(vegan)
+#require(adegenet)
 #require(dplyr)
-#require(pwr)
-#require(effsize)
-#library(sp)
-#library(rgdal)
+#require(sp)
+#require(tmaptools)
 require(ggmap)
+require(ggplot2)
 ```
 
 ### d) Import data
