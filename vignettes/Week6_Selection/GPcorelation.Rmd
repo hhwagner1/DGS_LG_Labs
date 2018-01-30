@@ -1,0 +1,50 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Run Week 4 vignette to create WWP object of class 'ecogen'
+
+```{r}
+require(EcoGenetics)
+
+WWP
+
+loc2al <- eco.convert(WWP[["G"]], "matrix", "alleles.matrix", ploidy = 2)
+class(loc2al)
+str(loc2al)
+
+
+Cor.P.G <- sapply(data.frame(loc2al), 
+       function(ls) cor(WWP@P$d13c, as.numeric(factor(ls)), 
+                        use="pairwise.complete.obs"))
+# Should remove mono's
+
+plot(Cor.P.G )
+fst_snp
+plot(Cor.P.G[!is.na(Cor.P.G)], fst_snp )
+
+
+# In @A, first allele is rarer allele. Keep only these correlations with P. 
+# Remove monomorphic markers - check!!
+
+Cor.P.G <- sapply(data.frame(WWP@A), function (ls) cor.test(WWP@P$d13c, ls)$estimate)
+Cor.P.G <- matrix(Cor.P.G, ncol=2, byrow=TRUE)[,1]
+Cor.P.G <- Cor.P.G[!is.na(Cor.P.G)]
+
+P.values <- sapply(data.frame(WWP@A), function (ls) cor.test(WWP@P$d13c, ls)$p.value)
+P.values <- matrix(P.values, ncol=2, byrow=TRUE)[,1]
+P.values <- P.values[!is.na(P.values)]
+Cor.P.G <- data.frame(Cor=Cor.P.G, p.value=P.values)
+
+plot(fst_snp, Cor.P.G$cor)
+
+plot(Cor.P.G$Cor, Cor.P.G$p.value)
+points(Cor.P.G$Cor[Cor.P.G$p.value < 0.05], 
+       Cor.P.G$p.value[Cor.P.G$p.value < 0.05], col="red")
+points(Cor.P.G$Cor[Cor.P.G$p.value < (0.05/nrow(Cor.P.G))], 
+       Cor.P.G$p.value[Cor.P.G$p.value < (0.05/nrow(Cor.P.G))], col="red", pch=16)
+
+
+
+```
