@@ -34,7 +34,14 @@ I will also provide examples using two different plotting approaches. R has a ro
 * Transformations of the axes into different coordinate spaces (e.g., cartesian, polar, etc.) or the data onto different scales (e.g., logrithmic)  
 * Specification of subplots.
 
-With basic R graphics, we specify these layers as arguments passed to the plotting function (`plot()`, `boxplot()`, etc.). The ggplot2 library takes a different approach, allowing you to specify these components separately and literally add them together like components of a linear model. We'll see below what that means.
+In the normal plotting routines discussed before, configuration of these layers were specified as arguments passed to the plotting function (`plot()`, `boxplot()`, etc.). The ggplot2 library takes a different approach, allowing you to specify these components separately and literally add them together like components of a linear model.
+
+Required packages:
+
+```{r}
+library(ggplot2)
+library(RColorBrewer)
+```
 
 # 2. Univariate plots
 
@@ -72,7 +79,7 @@ There are a couple of things to point out about this.
 4. To the basic description of the data and aesthetics, a geometry is added, that of a barplot.  If necessary, you can pass additional information to the `geom_bar()` function.  In this case, I had to tell it that you use the raw data `stat='identity'` instead of trying to summarize many observations.  
 5. The axis labels are taken directly from the names of the columns in the `data.frame`.
 
-If the data on the x-axis is not discrete but measured on a single, numeric variable, then the `hist()` function can take the data and categorize it into groups (bins) based upon the density of the underlying data.
+If the data on the x-axis is not discrete but measured on a single variable, then the `hist()` function can take the data and categorize it into groups based upon the density of the underlying data.
 
 ```{r}
 h <- hist(iris$Sepal.Length)

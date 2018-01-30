@@ -1,9 +1,6 @@
 ---
 title: "Week 6: Quantitative Genetics"
-author: 
-- "Andrew Eckert"
-- "Kati Csillery"
-- "Helene Wagner"
+author: "Andrew Eckert, Kati Csillery and Helene Wagner"
 date: "`r Sys.Date()`"
 show_toc: true
 output:
@@ -46,14 +43,16 @@ All required packages should have been installed already when you installed 'Lan
 ```{r message=FALSE, warning=TRUE}
 require(LandGenCourse)
 require(lme4)
-#require(car)
 #require(EcoGenetics)
 require(tibble)
-#require(sjPlot)
+#require(lattice)
 #require(MuMIn)
 #require(predictmeans)
 #require(nlme)
 #require(QstFstComp)
+#require(car)  
+
+#require(ggeffects)     # Not automatically installed with 'LandGenCourse'
 
 source(system.file("extdata", "supplemental_R_functions.R", 
                             package = "LandGenCourse"))
@@ -417,21 +416,24 @@ There are two ways to extract the block effects. The first is with function 'fix
 lme4::fixef(mod4)
 ```
 
-A more convenient way to extract the effects is with function 'ggeffect' of the package 'ggeffects'. This provides a mean for each block.
+A more convenient way to extract the effects is with function 'ggeffect' of the package 'ggeffects'. 
+
+Note: The package 'ggeffects' is not automatically imported with 'LandGenCourse' to avoid incompatibility issues. You can install by runing 'install.packages("ggeffects")' below without '#'. 
 
 ```{r}
+# install.packages("ggeffects")
+
 ggeffects::ggeffect(mod4, terms=c("block"))
-sjPlot::plot_model(mod4, type="eff", terms=c("block"))
 ```
 
-The plot shows the predicted d13c value for each block (accounting for population and family) and a 95% confidence interval for each predicted value.
+The table lists the predicted d13c value for each block (accounting for population and family) and a 95% confidence interval for each predicted value.
 
 Now let's plot the effects (mean with 95% confidence interval) for each random factor, accounting for all other factors. Again, these are not simply means of observed traits values but marginal effect, accounting for all other factors in the model. 
 
 Note: If the plots appear in the 'Plot' tab in RStudio, use the arrows to scroll between plots.
 
 ```{r}
-sjPlot::plot_model(mod3, type="re")     
+lattice::dotplot(ranef(mod4,condVar=TRUE))
 ```
 
 We can see that there are considerable differences between populations, where 'blk cyn' has the highest, and 'mt watson' the lowest mean. 
@@ -477,11 +479,6 @@ Questions:
 
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
-#detach("package:lme4", unload=TRUE)
-#detach("package:Matrix", unload=TRUE)
-#detach("package:adegenet", unload=TRUE)
-#detach("package:ade4", unload=TRUE)
-#detach("package:gstudio", unload=TRUE)
 LandGenCourse::detachAllPackages()
 ```
 
