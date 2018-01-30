@@ -43,6 +43,18 @@ dd.ecogen <- Snail.all.ecogen
 dd.site <- tmp
 row.names(dd.site) <- dd.site$SiteID
 
+require(dplyr)
+coords <- data.frame(dd.ecogen@XY, SiteID=dd.ecogen@S$SiteID)
+coords <- coords %>% 
+  group_by(SiteID)%>%
+  unique()
+dd.site.xy <- dplyr::left_join(dd.site, coords, by="SiteID")
+sp::coordinates(dd.site.xy) <- ~ Longitude + Latitude
+sp::proj4string(dd.site.xy) <- sp::CRS("+proj=longlat +datum=WGS84")
+class(dd.site.xy)
+dd.site <- dd.site.xy
+
+
 # Export as '.Rdata' files:
 save(dd.ecogen, file = "dd.ecogen.RData", compress='xz')
 save(dd.site, file = "dd.site.RData", compress='xz')
