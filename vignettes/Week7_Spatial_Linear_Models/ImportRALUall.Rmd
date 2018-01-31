@@ -1,0 +1,47 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Import genetic data into 'ecogen' object
+
+NOTE: Paths!
+
+```{r}
+tmp <- read.csv("./data/RALU_loci_allpops.csv", header=TRUE)
+tmp$Pop <- as.character(tmp$Pop)
+tmp$Pop[tmp$Pop == "GentainL"] <- "GentianL"
+tmp$Pop[tmp$Pop == "GentainP"] <- "GentianP"
+
+ralu.ecogen <- EcoGenetics::ecogen(G=tmp[,-1], 
+                                   S = data.frame(Pop=tmp[,1]), 
+                                   ploidy = 2,  type="codominant",
+                                   sep = ":", NA.char = NA, ncod=1)
+```
+
+## Import site names
+
+```{r}
+tmp <- read.csv("./data/RALU_coords_allpops.csv", header=TRUE)
+tmp$Pop <- levels(ralu.ecogen@S$Pop)[as.numeric(tmp$SiteName)]
+tmp$Basin <- as.character(tmp$Basin)
+tmp$SiteName <- as.character(tmp$SiteName)
+tmp$SiteName[tmp$SiteName == "Walkabout"] <- "WalkaboutLake"
+tmp$SiteName[tmp$SiteName == "Welcome"] <- "WelcomeLake"
+ralu.ecogen <- EcoGenetics::eco.fill_ecogen_with_df(ralu.ecogen,
+               pop="Pop", pop_levels = tmp$Pop, 
+               E=tmp[,c(1,6)])
+ralu.ecogen[["S"]] <- cbind(ralu.ecogen[["S"]], ralu.ecogen[["E"]])
+head(ralu.ecogen[["S"]])
+
+```
+
+## Import site data
+
+```{r}
+data(ralu.site, package="GeNetIt")
+
+ralu.ecogen <- EcoGenetics::eco.fill_ecogen_with_df(ralu.ecogen,
+               pop="SiteName", pop_levels = ralu.site@data$SiteName,
+               E=ralu.site@data)
+```
