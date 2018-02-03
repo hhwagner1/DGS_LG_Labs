@@ -1,5 +1,5 @@
 ---
-title: "Week 1: Importing Genetic Data"
+title: "Week 7: Spatial Linear Models"
 author: "Helene Wagner"
 date: "`r Sys.Date()`"
 show_toc: true
@@ -9,7 +9,7 @@ output:
     fig_width: 4 
     fig_height: 3.5
 vignette: >
-  %\VignetteIndexEntry{Week 1: Importing Genetic Data}
+  %\VignetteIndexEntry{Week 7: Spatial Linear Models}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -19,18 +19,17 @@ vignette: >
 
 This worked example shows:
 
-- How microsatellite data may be coded in a spreadsheet. 
-- How such a file is imported into R.
-- How the data are imported into a 'genind' object using package 'adegenet'.
-- How to view information stored in a 'genind' object.
-- How to import the data with the 'gstudio' package.
-
-Try modifying the code to import your own data!
+- How to test regression residuals for spatial autocorrelation.
+- How to fit a model with spatially autocorrelated errors (GLS)
+- How to derive Moran Eigenvector Maps from sampling locations
+- How to perform spatial filtering with MEM
+- How to do the analogue of a partial Mantel test with 'Sunder'
 
 ### b) Data set
 
-This code imports genetic data from 181 individuals of Colombia spotted frogs (Rana luteiventris) from 12 populations. The data are a subsample of the full data set analyzed in Funk et al. (2005) and Murphy et al. (2010). Please see the separate introduction to the data set. 
+Here we analyze population-level data for 29 ponds from the Columbia spotted frog data (Murphy et al. 2010). 
 
+NOTE: IMPORT DATA, ADD DESCRIPTION
 - **ralu.loci**: Data frame with populations and genetic data (181 rows x 9 columns). Included in package 'LandGenCourse'. To load it, type: data(ralu.loci)
 
 ### c) Required R libraries
@@ -40,65 +39,29 @@ All required packages should have been installed already when you installed 'Lan
 Note: the function 'library' will always load the package, even if it is already loaded, whereas 'require' will only load it if it is not yet loaded. Either will work.
 
 ```{r message=FALSE, warning=TRUE}
-require(adegenet)
-require(gstudio)
+#require(adegenet)
+#require(gstudio)
 require(LandGenCourse)
-require(tibble)
+#require(tibble)
 #require(here)
 ```
 
-## 2. Import data from .csv file
+## 2. Non-linear regression model (LM)
 
-### a) Preparation
-
-Create a new R project for this lab: File > New Project > New Directory > New Project. 
-
-This will automatically set your working directory to the new project folder. That's where R will look for files and save anything you export.  
-
-Note: R does not distinguish between single quotes and double quotes, they are treated as synonyms, but the opening and closing symbols need to match.
-
-The dataset 'ralu.loci' is available in the package 'LandGenCourse' and can be loaded with 'data(ralu.loci)'. 
+### a) Import data
 
 ```{r}
-
-
-
-
-
-data(ralu.loci)
+Frogs.site <- read.csv("./data/RALU_data_div.csv", header=TRUE)
 ```
 
-Below, however, we'll import it from a comma separated file (.csv), as this is the recommended format for importing your own data (e.g. from Excel). 
+### b) Least squares regression model (LM)
 
-### b) Excel file 
 
-Check that the file "ralu.loci.csv" is now in the folder "data". Note that in Excel, the columns with the loci must be explicitly defined as 'text', otherwise Excel is likely to interpret them as times. Instructions: 
-
-Opening an existing .csv file with genetic data:
-
-- Excel menu: 'File > New Workbook'.
-- Excel menu: 'File > Import > CSV File > Import'. Navigate to file.
-- Text Import Wizard: select 'Delimited', click 'Next'.
-- Delimiters: check 'comma'. Click 'Next'.
-- Use the 'Shift' key to select all columns with loci A - H. Select 'text'. Click 'Finish > OK'.
-
-Creating a new Excel file to enter genetic data:
-
-- Label the loci columns. 
-- Select all loci columns by clicking on the column headers (hold the 'Shift' key to select multiple adjacent columns).
-- Define the data format: 'Format > Cell > Text'.
-- Enter genetic data, separating the alleles by a colon (e.g., '1:3').
-
-Saving Excel file for import in R:
-
-- File Format: 'Comma Separated Values (.csv)'
-
-Here is a screenshot of the first few lines of the Excel file with the genetic data:
-
-```{r  out.width = "50%"}
-knitr::include_graphics(system.file("extdata", "ExcelTable.png", 
-                            package = "LandGenCourse"))
+```{r}
+mod.lm <- lm(Shannon_Median ~ Area + Depth + CTI, data = Frogs.site)
+mod.lm
 ```
+
 
 ### c) Import with function 'read.csv'
 

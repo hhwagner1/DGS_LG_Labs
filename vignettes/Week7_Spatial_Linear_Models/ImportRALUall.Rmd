@@ -12,36 +12,80 @@ tmp <- read.csv("./data/RALU_loci_allpops.csv", header=TRUE)
 tmp$Pop <- as.character(tmp$Pop)
 tmp$Pop[tmp$Pop == "GentainL"] <- "GentianL"
 tmp$Pop[tmp$Pop == "GentainP"] <- "GentianP"
+tmp$Pop[tmp$Pop == "Doe  "] <- "Doe"
+tmp[,6] <- as.character(tmp[,6])
+tmp[,6][tmp[,6] == "10:10"] <- "9:9"
+tmp[,6] <- factor(tmp[,6])
+a <- c(1:nrow(tmp))[tmp[,1] == "TwinCove"]
+#tmp <- tmp[-a ,]
 
 ralu.ecogen <- EcoGenetics::ecogen(G=tmp[,-1], 
                                    S = data.frame(Pop=tmp[,1]), 
                                    ploidy = 2,  type="codominant",
                                    sep = ":", NA.char = NA, ncod=1)
-```
-
-## Import site names
-
-```{r}
-tmp <- read.csv("./data/RALU_coords_allpops.csv", header=TRUE)
-tmp$Pop <- levels(ralu.ecogen@S$Pop)[as.numeric(tmp$SiteName)]
-tmp$Basin <- as.character(tmp$Basin)
-tmp$SiteName <- as.character(tmp$SiteName)
-tmp$SiteName[tmp$SiteName == "Walkabout"] <- "WalkaboutLake"
-tmp$SiteName[tmp$SiteName == "Welcome"] <- "WelcomeLake"
-ralu.ecogen <- EcoGenetics::eco.fill_ecogen_with_df(ralu.ecogen,
-               pop="Pop", pop_levels = tmp$Pop, 
-               E=tmp[,c(1,6)])
-ralu.ecogen[["S"]] <- cbind(ralu.ecogen[["S"]], ralu.ecogen[["E"]])
-head(ralu.ecogen[["S"]])
-
+Frogs.ecogen <- ralu.ecogen[-a,]
 ```
 
 ## Import site data
 
 ```{r}
-data(ralu.site, package="GeNetIt")
+Frogs.site <- read.csv("./data/RALU_data_div.csv", header=TRUE)
+Frogs.site$Pop <- levels(Frogs.ecogen[["S"]]$Pop[as.numeric(Frogs.site$SITENAME)])
+Frogs.site[,c(1,2,18)]
 
-ralu.ecogen <- EcoGenetics::eco.fill_ecogen_with_df(ralu.ecogen,
-               pop="SiteName", pop_levels = ralu.site@data$SiteName,
-               E=ralu.site@data)
+Frogs.ecogen <- EcoGenetics::eco.fill_ecogen_with_df(Frogs.ecogen, 
+                pop="Pop", pop_levels=Frogs.site$Pop, 
+                XY=Frogs.site[,5:6], E=Frogs.site[,c(1:4,7:17)])
 ```
+
+## Calculate allelic richness
+
+```{r}
+Frogs.genind <- EcoGenetics::ecogen2genind(Frogs.ecogen)
+Frogs.genind@pop <- Frogs.ecogen[["S"]]$Pop
+#Ar <- data.frame(Ar=PopGenReport::allel.rich(Frogs.genind)$mean.richness)
+Frogs.site$Ar <- PopGenReport::allel.rich(Frogs.genind)$mean.richness
+```
+
+## LM
+
+```{r}
+cor(Frogs.site$Ar, Frogs.site$Shannon)
+
+cor(Frogs.site$Ar, Frogs.site, use="pairwise.complete.obs")
+
+a2 <- c(1:nrow(Frogs.site))[is.na(Frogs.site$Ar)]
+mod.lm <- lm(Ar ~ Depth + HLI, data=Frogs.site[-a2,])
+mod.lm2 <- lm(Ar ~ X + Y + Depth + HLI, data=Frogs.site[-a2,])
+```
+
+## Test for residual autocorrelation
+
+```{r}
+a2 <- c(1:nrow(Frogs.site))[is.na(Frogs.site$Ar)]
+nb.gab <- adegenet::chooseCN(xy = Frogs.site[-a2,5:6], 
+          result.type = "nb", plot.nb = FALSE, type = 2)
+spdep::moran.test(Frogs.site$Ar[-a2], spdep::nb2listw(nb.gab),
+                  alternative="greater")
+spdep::lm.morantest(mod.lm, spdep::nb2listw(nb.gab),
+                  alternative="greater")
+spdep::lm.morantest(mod.lm2, spdep::nb2listw(nb.gab),
+                  alternative="greater")
+spdep::moran.test(mod.lm2$residuals, spdep::nb2listw(nb.gab),
+                  alternative="greater", )
+```
+
+## Correlogram
+
+```{r}
+Correlogram <- EcoGenetics::eco.correlog(mod.lm$residuals, 
+        XY = Frogs.site[-a2,5:6],  nsim = 199,
+        latlon=FALSE, alternative="less")
+EcoGenetics::eco.plotCorrelog(Correlogram)
+
+Variogram <- EcoGenetics::eco.variogram(mod.lm$residuals, 
+        XY = Frogs.site[-a2,5:6],  latlon=FALSE)
+EcoGenetics::eco.plotCorrelog(Variogram)
+```
+
+
