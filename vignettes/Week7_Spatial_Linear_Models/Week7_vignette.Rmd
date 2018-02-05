@@ -51,7 +51,40 @@ require(LandGenCourse)
 ### a) Import data
 
 ```{r}
-Frogs.site <- read.csv("./data/RALU_data_div.csv", header=TRUE)
+#Frogs.site <- read.csv("./data/RALU_data_div.csv", header=TRUE)
+
+data(ralu.site, package="GeNetIt")
+Frogs.site <- data.frame(ralu.site@coords, ralu.site@data)
+tibble::as.tibble(Frogs.site)
+
+
+ralu.loci <- read.csv("C:/Users/wagnerh1/Desktop/R_GitHub_Projects/DGS_LG_Labs/vignettes/Week7_Spatial_Linear_Models/RALU_loci_allpops.csv")
+
+Frogs <- data.frame(FrogID = paste(substr(ralu.loci$Pop, 1, 3),row.names(ralu.loci), sep="."),
+                    ralu.loci)
+Frogs$Pop <- as.character(Frogs$Pop)
+Frogs$Pop[Frogs$Pop =="Doe  "] <- "Doe"
+Frogs$Pop[Frogs$Pop =="GentainL"] <- "GentianL"
+Frogs$Pop[Frogs$Pop =="GentainP"] <- "GentianP"
+Frogs$Pop <- factor(Frogs$Pop)
+
+Frogs$E <- as.character(Frogs$E)
+Frogs$E[Frogs$E == "10:10"] <- "9:9"
+Frogs$E <- factor(Frogs$E)
+  
+Frogs.genind <- adegenet::df2genind(X=Frogs[,c(3:10)], sep=":", ncode=NULL, 
+                                    ind.names= Frogs$FrogID, loc.names=NULL, 
+                                    pop=Frogs$Pop, NA.char="NA", ploidy=2, 
+                                    type="codom", strata=NULL, hierarchy=NULL)
+Frogs.genind
+EcoGenetics::genind2ecogen(Frogs.genind)
+
+
+RA <- PopGenReport::allel.rich(Frogs.genind)$mean.richness
+SiteName = c(Frogs.site$SiteName[c(1:3, 5:28)], NA, Frogs.site$SiteName[30:31])
+
+EcoGenetics::genind2ecogen(Frogs.genind)
+
 ```
 
 ### b) Least squares regression model (LM)
@@ -70,7 +103,7 @@ As the file is saved in csv format, we use the function 'read.csv' to import it 
 ```{r}
 Frogs <- read.csv(system.file("extdata", "ralu.loci.csv", 
                             package = "LandGenCourse"), header=TRUE)
-as.tibble(Frogs)
+tibble::as.tibble(Frogs)
 ```
 
 - The data frame 'Frogs' contains 181 rows and 11 columns. Only the first few are shown.
