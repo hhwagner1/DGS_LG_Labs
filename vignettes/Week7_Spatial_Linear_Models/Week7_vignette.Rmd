@@ -57,11 +57,13 @@ data(ralu.site, package="GeNetIt")
 Frogs.site <- data.frame(ralu.site@coords, ralu.site@data)
 tibble::as.tibble(Frogs.site)
 
+SiteName <- c(Frogs.site$SiteName[c(1:3, 5:28)], NA, Frogs.site$SiteName[30:31])
 
 ralu.loci <- read.csv("C:/Users/wagnerh1/Desktop/R_GitHub_Projects/DGS_LG_Labs/vignettes/Week7_Spatial_Linear_Models/RALU_loci_allpops.csv")
 
-Frogs <- data.frame(FrogID = paste(substr(ralu.loci$Pop, 1, 3),row.names(ralu.loci), sep="."),
-                    ralu.loci)
+#Frogs <- data.frame(FrogID = paste(substr(ralu.loci$Pop, 1, 3),row.names(ralu.loci), sep="."),
+#                    ralu.loci)
+Frogs <- data.frame(ralu.loci)
 Frogs$Pop <- as.character(Frogs$Pop)
 Frogs$Pop[Frogs$Pop =="Doe  "] <- "Doe"
 Frogs$Pop[Frogs$Pop =="GentainL"] <- "GentianL"
@@ -71,19 +73,25 @@ Frogs$Pop <- factor(Frogs$Pop)
 Frogs$E <- as.character(Frogs$E)
 Frogs$E[Frogs$E == "10:10"] <- "9:9"
 Frogs$E <- factor(Frogs$E)
+
+#Frogs$SiteName <- SiteName[as.numeric(Frogs$Pop)]
+Frogs <- data.frame(SiteName = SiteName[as.numeric(Frogs$Pop)], Frogs)
   
 Frogs.genind <- adegenet::df2genind(X=Frogs[,c(3:10)], sep=":", ncode=NULL, 
-                                    ind.names= Frogs$FrogID, loc.names=NULL, 
+                                    ind.names= NULL, loc.names=NULL, 
                                     pop=Frogs$Pop, NA.char="NA", ploidy=2, 
                                     type="codom", strata=NULL, hierarchy=NULL)
 Frogs.genind
-EcoGenetics::genind2ecogen(Frogs.genind)
-
+Frogs.ecogen <- EcoGenetics::genind2ecogen(Frogs.genind)
+row.names(Frogs) <- row.names(Frogs.ecogen@G)
+Frogs.ecogen[["S"]] <- data.frame(Frogs[,1:2])
 
 RA <- PopGenReport::allel.rich(Frogs.genind)$mean.richness
-SiteName = c(Frogs.site$SiteName[c(1:3, 5:28)], NA, Frogs.site$SiteName[30:31])
 
-EcoGenetics::genind2ecogen(Frogs.genind)
+
+
+
+Frogs.ecopop <- EcoGenetics::ecogen2ecopop(Frogs.ecogen)
 
 ```
 
@@ -96,203 +104,9 @@ mod.lm
 ```
 
 
-### c) Import with function 'read.csv'
 
-As the file is saved in csv format, we use the function 'read.csv' to import it into an R object called 'Frogs'. Display the first few rows and columns to check whether the data have been imported correctly:
-
-```{r}
-Frogs <- read.csv(system.file("extdata", "ralu.loci.csv", 
-                            package = "LandGenCourse"), header=TRUE)
-tibble::as.tibble(Frogs)
-```
-
-- The data frame 'Frogs' contains 181 rows and 11 columns. Only the first few are shown.
-- The file has a header row with column names.
-- Each row is one individual. Note that for this data set, there is no column with ID or names of individuals.
-- The first two columns indicates the site in long ("SiteName") and short ("Pop") format.
-- There are 8 columns with loci, named A - H. Each locus has two alleles, coded with numbers and separated by a colon (:). 
-- This coding suggests that the markers are codominant and that the species is diploid. 
-- The code for missing values is 'NA'. There seem to be quite a few missing values.
-
-
-### d) Create ID variable
-
-We'll add unique ID's for the frogs (to show how these would be imported). Here we take, for each frog, a substring of 'Pop' containing the first three letters, add the row number, and separate them by a period. 
-
-```{r}
-Frogs <- data.frame(FrogID = paste(substr(Frogs$Pop, 1, 3), row.names(Frogs), sep="."), Frogs)
-as.tibble(Frogs)
-```
-
-### e) Export with function 'write.csv'
-
-If you want to export (and import) your own files, adapt this code (it assumes that you writing permission for your project folder). To run the code, remove the hashtag '#' at the beginning of each line of code, so that it will not be commented out.
-
-The first line checks whether a subdirectory "output" already exists, and creates it if not. We use a relative path to save the file into a subfolder 'output' within your project folder. The relative path of the folder "output" is "./output". This is convenient if you want to make your code portable and reproducible!
-
-The function 'here' from the package 'here' finds the path to your project folder, so that we can paste it together with the relative path to folder 'output' within the project folder.
-
-```{r}
-#require(here)
-#if(!dir.exists(paste0(here(),"/output"))) dir.create(paste0(here(),"/output"))
-#write.csv(ralu.loci, paste0(here(),"/output/ralu.loci.csv"), 
-#          quote=FALSE, row.names=FALSE)
-```
-
-
-## 3. Create 'genind' Object
-
-### a) Read the helpfile
-
-We use the function 'df2genind' of the 'adegenet' package to import the loci into a 'genind' object named 'Frogs.genind'. Check the help file for a definition of all arguments and for example code. 
-
-```{r}
-?df2genind
-```
-
-### b) Set all arguments of function 'df2genind'
-
-Some explanations:
-
-- **X**: this is the data frame (or matrix) containing the loci only. Hence we need columns 4 - 11.
-- **sep**: need to specify the separator between alleles (here: colon)
-- **ncode**: not needed here because we used a separator, defined under 'sep'.
-- **ind.names**: here we should indicate the column 'FrogID'.
-- **loc.names**: by default this will use the column names of the loci.
-- **pop**: here we should indicate either the column 'Pop' or 'SiteName'.
-- **NA.char**: how were missing values coded? Here: 'NA'.
-- **ploidy**: this species is diploid, hence '2'.
-- **type**: marker type, either "codom" for codominant markers like microsatellites, or "PA" for presence-absence, such as SNP or AFLP markers. Note: you can use either "" or ''.
-- **strata**: one way of defining hierarchical sampling levels. We will add this in Week 3.
-- **hierarchy**: another way of defining hierarchical sampling levels. We'll skip it for now.
-
-```{r}
-Frogs.genind <- df2genind(X=Frogs[,c(4:11)], sep=":", ncode=NULL, ind.names= Frogs$FrogID, loc.names=NULL, pop=Frogs$Pop, NA.char="NA", ploidy=2, type="codom", strata=NULL, hierarchy=NULL)
-```
-### c) Check imported data
-
-Printing the genind object's name lists the number of individuals, loci and alleles, and lists all slots (prefaced by @).
-
-```{r}
-Frogs.genind
-```
-
-### d) Summarize 'genind' object
-
-There is a 'summary' function for 'genind' objects. Notes: 
-
-- 'Group' here refers to the populations, i.e., 'Group sizes' means number of individuals per population. 
-- It is a good idea to check the percentage of missing values here. If it is 0%, this may indicate that the coding for missing values was not recognized. If the % missing is very high, on the other hand, there may be some other importing problem. 
-
-```{r}
-summary(Frogs.genind)
-```
-
-## 4. View information stored in 'genind' object
-
-The summary lists each attribute or 'slot' of the 'genind' object and summarizes its content. Technically speaking, 'genind' objects are S4 objects in R, which means that their slots are accessed with the '@' sign, rather than the '$' sign for attributes of the more commonly used S3 objects. Interestingly, the object does not store the data table that was imported, but converts it to a table of allele counts.
-
-### a) Slot @tab
-
-Table with allele counts, where each column is an allele. Allele name "A.1" means "locus A, allele 1". For a codominant marker (e.g. microsatellite) and a diploid species, allele counts per individual can be 0, 1, 2, or NA=missing. Here are the first few lines:
-
-```{r}
-as.tibble(Frogs.genind@tab)
-```
-
-### b) Slot @loc.n.all
-
-Number of alleles per locus, across all populations.
-
-```{r}
-Frogs.genind@loc.n.all
-```
-
-### c) Slot @loc.fac
-
-This is a factor that indicates for each allele (column in @tab) which locus it belongs to. The levels of the factor correspond to the loci.
-
-```{r}
-Frogs.genind@loc.fac
-```
-
-### d) Slot @all.names
-
-List of allele names, separately for each locus. Note: the alleles are treated as text (character), even if they are coded as numbers. They are sorted in order of occurrence in data set.
-
-```{r}
-Frogs.genind@all.names
-```
-
-### e) Further slots
-
-The following slots are automatically filled with default values unless specified by user during import into 'genind' object:
-
-- Slot @ploidy: ploidy for each individual.
-- Slot @type: codominant (microsatellites) or presence/absence (SNP, AFLP)
-
-The following slots may be empty unless specified during or after import into 'genind' object:
-
-- Slot @other: placeholder for non-genetic data, e.g. spatial coordinates of individuals.
-- Slot @pop: vector indicating the population that each individual belongs to.
-- Slot @strata: stratification of populations, e.g. within regions or treatments.
-- Slot @hierarchy: optional formula defining hierarchical levels in strata.
-
-## 5. Import data with 'gstudio' package
-
-### a) Function 'read_population'
-While 'genind' objects are used by many functions for analyzing genetic data, the 'gstudio' package provides an interface for additional analysis. We use the function 'read_population' to import the data.
-
-```{r}
-?read_population
-```
-
-### b) Set arguments
-
-Some explanations:
-
-- **path**: This is the path to the .csv file. If it is in the current working directory, then the filename is sufficient.  
-- **type**: here we have 'separated' data, as the alleles at each locus are separated by a colon.
-- **locus.columns**: this would be columns 3 - 10 in this case, because we are importing from the .csv file directly, which does not contain the FrogID variable. We can add that later.
-- **phased**: default is fine here.
-- **sep**: here this refers to the .csv file! The separater is a comma.
-- **header**: yes we have column names.
-
-Working directory confusion: If you are working within an R project folder, then that folder is automatically set as your working directory. If you are working in an R session outside of an R project, then you need to actively set the working directory in the R Studio menu under: Session > Set working directory > Choose Directory.
-
-```{r}
-
-
-
-
-
-
-Frogs.gstudio <- read_population(path=system.file("extdata", "ralu.loci.csv", 
-                                                  package = "LandGenCourse"), 
-                   type="separated", locus.columns=c(3:10), 
-                   phased=NULL, sep=",", header=TRUE)
-```
-
-### c) Check imported data
-
-Check the column types: 'SiteName' and 'Pop' are now character vectors, and the loci columns A - H are now of class 'locus' (it is indicated that 'locus' is a S3 object type).
-
-```{r}
-str(Frogs.gstudio)
-```
-
-### d) Add FrogID
-
-Frogs.gstudio is a data frame, and we can manipulate like any other data frame. Here we will add the variable 'FrogID' as the first column. 
-
-```{r}
-Frogs.gstudio <- data.frame(FrogID=Frogs$FrogID, Frogs.gstudio) 
-str(Frogs.gstudio)
-```
 
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
-detach("package:adegenet", unload=TRUE)
-detach("package:ade4", unload=TRUE)
-detach("package:gstudio", unload=TRUE)
+LandGenCourse::detachAllPackages()
 ```
