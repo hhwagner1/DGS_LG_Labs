@@ -59,7 +59,7 @@ tibble::as.tibble(Frogs.site)
 
 SiteName <- c(Frogs.site$SiteName[c(1:3, 5:28)], NA, Frogs.site$SiteName[30:31])
 
-ralu.loci <- read.csv("C:/Users/wagnerh1/Desktop/R_GitHub_Projects/DGS_LG_Labs/vignettes/Week7_Spatial_Linear_Models/RALU_loci_allpops.csv")
+ralu.loci <- read.csv(paste0(here::here(), "/vignettes/Week7_Spatial_Linear_Models/RALU_loci_allpops.csv"))
 
 #Frogs <- data.frame(FrogID = paste(substr(ralu.loci$Pop, 1, 3),row.names(ralu.loci), sep="."),
 #                    ralu.loci)
@@ -90,20 +90,88 @@ RA <- PopGenReport::allel.rich(Frogs.genind)$mean.richness
 
 
 
+Frogs.ecopop <- EcoGenetics::ecogen2ecopop(Frogs.ecogen, hier="Pop") 
 
-Frogs.ecopop <- EcoGenetics::ecogen2ecopop(Frogs.ecogen)
+tmp <- data.frame(SiteName)
+row.names(tmp) <- row.names(Frogs.ecopop[["S"]])
+Frogs.ecopop[["C"]] <- data.frame(SiteName=tmp, RA=RA)
 
+tmp <- ralu.site
+tmp[29,] <- NA
+tmp <- tmp[-4,]
+dim(tmp)
+row.names(tmp) <- row.names(Frogs.ecopop[["C"]])
+tmp@coords[28,] <- NA
+Frogs.ecopop[["E"]] <- tmp@data
+Frogs.ecopop[["XY"]] <- tmp@coords
 ```
 
 ### b) Least squares regression model (LM)
 
 
 ```{r}
-mod.lm <- lm(Shannon_Median ~ Area + Depth + CTI, data = Frogs.site)
+mod.lm <- lm(Frogs.ecopop[["C"]]$RA ~ AREA_m2 + Depth_m + TDS, data = Frogs.ecopop[["E"]])
 mod.lm
 ```
 
+### b) Alternative data set: WWP
 
+
+```{r}
+data(WWP.ecogen, package="LandGenCourse")
+
+cor(WWP.ecogen[["P"]]$prov.eff, WWP.ecogen[["E"]])
+
+# Combined reconstructed trait (by family):
+cor(apply(WWP.ecogen[["P"]],1,sum), WWP.ecogen[["E"]])
+```
+
+# Estimate plot effect? Not better!
+```{r}
+phen <- read.delim(system.file("extdata", "WWP_phenotype_data.txt", 
+                            package = "LandGenCourse"), sep = "\t", header = T)
+phen$family <- as.factor(phen$family)
+phen$block <- as.factor(phen$block)
+mod5 <- lme4::lmer(d13c ~ 1 + (1|plot/family) + block, 
+                   data = phen, REML = TRUE)
+plot.eff <- lme4::ranef(mod5)$plot
+
+
+WWP.ecogen@S$plot <- factor(WWP.ecogen@S$plot)
+WWP.ecopop <- EcoGenetics::ecogen2ecopop(WWP.ecogen, hier="plot")
+WWP.ecopop[["E"]] <- aue.aggregated_df(WWP.ecogen@E, WWP.ecogen@S$plot, 
+                     fun=function(x) mean(x, na.rm = TRUE), 
+                     factor_to_counts = TRUE)
+
+cor(plot.eff, WWP.ecopop[["E"]])
+```
+
+```{r}
+Trait <- apply(WWP.ecogen[["P"]],1,sum)
+cor(Trait, WWP.ecogen[["E"]])
+mod.lm <- lm(Trait ~ ., data = WWP.ecogen[["E"]])
+mod.lm.XY <- lm(Trait ~ ., data = cbind(WWP.ecogen[["E"]], WWP.ecogen@XY[,3:4]))
+summary(mod.lm)
+car::vif(mod.lm)
+```
+
+```{r}
+WWP.ecogen@XY <- cbind(WWP.ecogen@XY[,1:2], SoDA::geoXY(WWP.ecogen@XY$latitude, 
+                  WWP.ecogen@XY$longitude))
+plot(WWP.ecogen@XY$X, WWP.ecogen@XY$Y, asp=1)
+#adegenet::chooseCN(xy=WWP.ecogen@XY[,c("X", "Y")], )
+nb.gab <- spdep::graph2nb(spdep::gabrielneigh(coords=
+                          data.matrix(WWP.ecogen@XY[,c("X", "Y")]), nnmult=6), 
+                          sym=TRUE)
+listw.gab <- spdep::nb2listw(nb.gab)
+spdep::moran.test(Trait, listw.gab)             # Y
+spdep::lm.morantest(mod.lm, listw.gab)          # residuals
+spdep::lm.morantest(mod.lm.XY, listw.gab)       # residuals|(XY)
+
+# Strong autocorrelation in environmental data:
+t(rbind(sapply(WWP.ecogen@E, function(ls) spdep::moran.test(ls, listw.gab)$estimate),
+p.value = sapply(WWP.ecogen@E, function(ls) spdep::moran.test(ls, listw.gab)$p.value)))
+```
 
 
 
