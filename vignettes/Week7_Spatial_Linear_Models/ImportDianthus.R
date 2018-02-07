@@ -2,30 +2,119 @@
 # Import dianthus data
 ######################
 
+# Import data (version with "-9" replaced by "NA"):
+# -------------------------------------------------
 
-GenData <- read.csv()
+GenData <- read.csv("~/Desktop/R_GitHub_Projects/DGS_LG_Labs/vignettes/Week7_Spatial_Linear_Models/Dianthus_carthusianorum_genodata_Dec15_2013_NA.csv")
+
+SiteData <- read.csv("~/Desktop/R_GitHub_Projects/DGS_LG_Labs/vignettes/Week7_Spatial_Linear_Models/SummaryData_12Sept2011.csv")
+
+# Convert from two-column to separated format:
+# --------------------------------------------
+tmp <- tmp2 <- GenData[,6:27]
+tmp2[] <- NA
+for(i in seq(1,21,2))
+{
+  #tmp2[,i] <- paste(tmp[,i], tmp[,i+1], sep=":")
+  tmp2[,i] <- paste(sprintf("%03d", tmp[,i]), 
+                    sprintf("%03d", tmp[,i+1]), sep=":")
+}
+tmp2 <- tmp2[,seq(1,21,2)]
+tmp2[tmp2 == "0NA:0NA"] <- "NA:NA"
+
+# Import into ecogen object:
+# --------------------------
+Dianthus.ecogen <- EcoGenetics::ecogen(XY = GenData[,c("LAT", "LONG")], 
+                   G = tmp2, S = GenData[,c(2:3)], missing="NA", 
+                   set.names = GenData[,1], sep=":", type="codominant")
+Dianthus.ecogen
+
+# Convert lat-lon coordinates:
+# ----------------------------
+Dianthus.ecogen@XY <- cbind(Dianthus.ecogen@XY, 
+                            SoDA::geoXY(latitude=Dianthus.ecogen@XY$LAT, 
+                                        longitude=Dianthus.ecogen@XY$LONG))
+
+# Convert to genind object and calculate allelic richness (RA):
+# -------------------------------------------------------------
+Dianthus.genind <- EcoGenetics::ecogen2genind(Dianthus.ecogen)
+Dianthus.genind@pop <- Dianthus.ecogen@S$PatchID
+RA <- PopGenReport::allel.rich(Dianthus.genind)$mean.richness
+
+# Copy RA to ecogen object:
+# -------------------------
+Dianthus.ecogen <- eco.fill_ecogen_with_df(Dianthus.ecogen, pop="PatchID",
+                                             pop_levels = names(RA), 
+                                             C=data.frame(RA=RA))
+
+# Subset individuals from patches with site data:
+# -----------------------------------------------
+
+a <- rep(NA, nrow(Dianthus.ecogen@S))
+for(i in 1:nrow(Dianthus.ecogen@S))
+{
+    a[i] <- grep(Dianthus.ecogen@S$PatchID[i], SiteData$Label)  
+}
+
+Dianthus.ecogen.subset <- Dianthus.ecogen[!is.na(a),]
+
+# Copy site data into ecogen slot E
+# ---------------------------------
+
+tmp3 <- SiteData[a[!is.na(a)],]
+row.names(tmp3) <- row.names(Dianthus.ecogen.subset@G)
+EcoGenetics::ecoslot.E(Dianthus.ecogen.subset) <- tmp3
+Dianthus.ecogen.subset
+
+# Aggregate to ecopop:
+# --------------------
+Dianthus.ecopop.subset <- EcoGenetics::ecogen2ecopop(Dianthus.ecogen.subset,
+                                                     hier="PatchID")
+Dianthus.ecopop.subset@E <- aue.aggregated_df(Dianthus.ecogen.subset@E, 
+                            hier=Dianthus.ecogen.subset@S[,"PatchID"], 
+                            fun=function(x) mean(x,na.rm = TRUE), 
+                            factor_to_counts = FALSE)
+Dianthus.ecopop.subset@E
+Dianthus.ecopop.subset@E <- Dianthus.ecopop.subset@E[,!is.na(colSums(Dianthus.ecopop.subset@E))]
+Dianthus.ecopop.subset
 
 
-SiteData <- read.csv("C:/Users/Helene/Desktop/DGS_LG_Labs/vignettes/Week7_Spatial_Linear_Models/SummaryData_12Sept2011.csv")
 
-coords <- data.matrix(SiteData[,c("x", "y")])
-a <- c(1:nrow(SiteData))[is.na(coords[,1])]
-a2 <-c(1:nrow(SiteData))[is.na(SiteData$Richness2008)]
-a <- c(a, a2)
+# Regression model:
+# -----------------
+cor(Dianthus.ecopop.subset@C$RA, Dianthus.ecopop.subset@E)
+mod.lm.IBR <- lm(Dianthus.ecopop.subset@C$RA ~ Elements2008.4 + S.sheep.continuous, 
+             data = Dianthus.ecopop.subset@E)
+summary(mod.lm.IBR)
 
-mod.lm <- lm(Richness2008 ~ Area.ha + S.sheep.intermittent, data = SiteData[-a,])
-summary(mod.lm)
-
-mod.lm.XY <- lm(Richness2008 ~ Area.ha + S.sheep.intermittent + x + y, data = SiteData[-a,])
+mod.lm.XY <- lm(Dianthus.ecopop.subset@C$RA ~ X + Y +
+                Elements2008.4 + S.sheep.continuous, 
+                data = cbind(Dianthus.ecopop.subset@XY, Dianthus.ecopop.subset@E))
 summary(mod.lm.XY)
 
+mod.lm.IBD <- lm(Dianthus.ecopop.subset@C$RA ~ Elements2008.4 + S.euclidean, 
+             data = Dianthus.ecopop.subset@E)
+summary(mod.lm.IBD)
 
-nb.gab <- spdep::graph2nb(spdep::gabrielneigh(coords[-a,]), sym=TRUE)
+# Test for spatial autocorrelation (Moran's I):
+# ---------------------------------------------
+coords <- data.matrix(Dianthus.ecopop.subset@XY[,3:4])
+nb.gab <- spdep::graph2nb(spdep::gabrielneigh(coords), sym=TRUE)
 listw.gab <- spdep::nb2listw(nb.gab)
-spdep::moran.test(SiteData$Richness2008[-a], listw.gab)             # Y
-spdep::lm.morantest(mod.lm, listw.gab)          # residuals
-spdep::lm.morantest(mod.lm.XY, listw.gab)       # residuals|(XY)
 
-# Strong autocorrelation in environmental data:
-t(rbind(sapply(WWP.ecogen@E, function(ls) spdep::moran.test(ls, listw.gab)$estimate),
-        p.value = sapply(WWP.ecogen@E, function(ls) spdep::moran.test(ls, listw.gab)$p.value)))
+spdep::moran.test(Dianthus.ecopop.subset@C$RA, listw.gab)             # Y
+spdep::moran.test(Dianthus.ecopop.subset@E$Elements2008.4, listw.gab)
+spdep::moran.test(Dianthus.ecopop.subset@E$S.euclidean, listw.gab) 
+spdep::moran.test(Dianthus.ecopop.subset@E$S.sheep.continuous, listw.gab) 
+
+spdep::lm.morantest(mod.lm.IBR, listw.gab)          # residuals
+spdep::lm.morantest(mod.lm.XY, listw.gab)       # residuals|(XY)
+spdep::lm.morantest(mod.lm.IBD, listw.gab)       # residuals|(XY)
+
+
+
+# Autocorrelation in environmental data:
+t(rbind(sapply(Dianthus.ecopop.subset@E, function(ls) 
+  spdep::moran.test(ls, listw.gab)$estimate),
+        p.value = sapply(Dianthus.ecopop.subset@E, function(ls) 
+          spdep::moran.test(ls, listw.gab)$p.value)))
