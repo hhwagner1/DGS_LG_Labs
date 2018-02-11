@@ -1,0 +1,452 @@
+---
+title: "Yessica's Tutorial"
+output: html_notebook
+---
+Landscape Genetics Course   INECOL AC September 2016
+
+Author: Yessica Rico M 
+
+Exercise: Relationship between patch connectivity and population genetic diversity in Dianthus carthusianorum
+
+Based on data and analyses from Rico et al (2014) Con Biol 2,
+ 
+```{r}
+# install.packages("MuMIn")
+require(MuMIn)
+```
+
+Import genetic diverisity data for each population (patch)
+
+```{r}
+#Diversity<-read.csv("Dc_diversity.csv", header=TRUE)  
+Diversity <- read.csv(paste0(here::here(),                                "/vignettes/Week7_Spatial_Linear_Models/Dc_diversity.csv"),
+                         header = TRUE)
+Diversity$patch <- as.character(Diversity$patch)
+Diversity$patch[match(c("G100", "G13", "G05a"), Diversity$patch)] <- 
+  c("G100", "G13", "G5a")
+# Fix some mistakes:
+b <- match(c("A02", "A28", "A46", "N03", "N05"), Diversity$patch)
+Diversity$intensity[b] <- c("Ungrazed", "Ungrazed", "Int", "Cte", "Cte")
+# Sort:
+a <- c(1:nrow(Diversity))[order(Diversity$patch)]
+Diversity <-Diversity[a,]
+dim(Diversity)
+names(Diversity)
+write.csv(Diversity, paste0(here::here(),                           "/vignettes/Week7_Spatial_Linear_Models/Dianthus_diversity.csv"))
+```
+
+## Part 1: Estimation of patch connectivity indices (Hanski) 
+
+In order to calculate the necessary pairwise distance matrices between patches, certain patch parameters are needed (area Aj, population size Nj, species presence pj)
+
+### Import patch coordinates X and Y 
+
+```{r}
+#patches <- read.csv("PATCH_XY_Dc.csv", header=TRUE )
+patches <- read.csv(paste0(here::here(),                                "/vignettes/Week7_Spatial_Linear_Models/PATCH_XY_Dc.csv"), header = TRUE)
+# HW: Change patch names to match data on Dryad
+patches$patch <- as.character(patches$patch)
+patches$patch[match(c("G100a", "G13a", "G05a"), patches$patch)] <- 
+  c("G100", "G13", "G5a")
+a <-c(1:nrow(patches))[order(patches$patch)] # patches in ascending order
+patches <- patches[a,]
+dim(patches) # number of patches
+write.csv(patches, paste0(here::here(),                                "/vignettes/Week7_Spatial_Linear_Models/PATCH_XY_Dianthus.csv"))
+```
+
+### Import predictive models of pairwise distances between patches 
+
+See DOC word file for explanation of dij models.
+
+Consistently grazed:
+
+```{r}
+diShecte <- read.table(paste0(here::here(),                                "/vignettes/Week7_Spatial_Linear_Models/dist_sheep_cte_Dc_Sep011.txt"), header=TRUE)
+#HW: Fix asymmetry in distances
+diShecte[1, 2:5] <- diShecte[2:5, 1]
+diShecte[27, 31] <- diShecte[31, 27]
+colnames(diShecte)[match(c("G100", "G13a", "G05a"), colnames(diShecte))] <- 
+  c("G100", "G13", "G5a")
+rownames(diShecte) <- colnames(diShecte)
+b <-c(1:nrow(diShecte))[order(names(diShecte))]
+diShecte<- diShecte[b,b]
+```
+
+Intermittently grazed:
+
+```{r}
+diSheint <- read.table(paste0(here::here(),                                "/vignettes/Week7_Spatial_Linear_Models/dist_sheep_int_Dc_Sep011.txt"), header=TRUE)
+#HW: Fix asymmetry in distances
+diSheint[41, 20] <- diSheint[20, 41]
+colnames(diSheint)[match(c("G100", "G13a", "G05a"), colnames(diSheint))] <- 
+  c("G100", "G13", "G5a")
+rownames(diSheint) <- colnames(diSheint)
+a <- c(1:ncol(diSheint))[order(names(diSheint))]
+diSheint <- diSheint[a,a]
+```
+
+Presence-absence of connectivity by grazing (i.e., whether or not two sites are in the same grazing system)
+
+```{r}
+diShenu <-read.table(paste0(here::here(),                                "/vignettes/Week7_Spatial_Linear_Models/dist_Sheep_null_Dc_Sep011.txt"), header=T) 
+#HW: Fix asymmetry in distances
+diShenu[8, 7] <- diShenu[7, 8]
+colnames(diShenu)[match(c("G100", "G13a", "G05a"), colnames(diShenu))] <- 
+  c("G100", "G13", "G5a")
+rownames(diShenu) <- colnames(diShenu)
+
+# Define grazing systems:
+System <- rep(NA, ncol(diShenu))
+names(System) <- colnames(diShenu)
+System[c(1:ncol(diShenu))[diShenu[1,] < 2]] = "West"
+System[c(1:ncol(diShenu))[diShenu[13,] < 2]] = "South"
+System[c(1:ncol(diShenu))[diShenu[39,] < 2]] = "East"
+
+a <- c(1:ncol(diShenu))[order(names(diShenu))]
+diShenu<- diShenu[a,a]
+System <- System[a]
+```
+
+Matrix effect (forest):
+
+```{r}
+diveg <- read.table(paste0(here::here(),                                "/vignettes/Week7_Spatial_Linear_Models/dist_forest_Nov2011v2.txt"), header=T)
+colnames(diveg)[match(c("G100a", "G13a", "G05a"), colnames(diveg))] <- 
+  c("G100", "G13", "G5a")
+rownames(diveg)[match(c("G100a", "G13a", "G05a"), rownames(diveg))] <- 
+  c("G100", "G13", "G5a")
+a<-c(1:ncol(diveg))[order(colnames(diveg))]
+b<-c(1:nrow(diveg))[order(rownames(diveg))]
+diveg<-diveg[b,a]
+diveg<-as.matrix(diveg, diag=T)
+```
+     
+Check dimensions:
+
+```{r}
+dim(diShecte)
+dim(diSheint)
+dim(diShenu)
+dim(diveg)
+```   
+
+Euclidean distances bewteen patches  
+
+```{r}
+xy<-cbind(patches$x, patches$y)
+distance<-dist(xy, diag=T)
+distance2<-(distance/1000)
+distance2<-as.matrix(distance2)
+#d<-as.matrix(distance2)              # HW: is this needed? Same as distance2
+
+#HW: add column names
+colnames(distance2) <- rownames(distance2) <- as.character(patches$patch)
+```   
+   
+Distance matrices
+```{r}
+diShecte <- as.matrix(diShecte, diag=T)
+diSheint <- as.matrix(diSheint, diag=T)
+diShenu <- as.matrix(diShenu, diag=T)
+tmp <- data.frame(colnames(diShecte), colnames(diveg), colnames(diSheint),
+   colnames(diShenu), colnames(distance2), patches$patch)
+# Count unique patch names per row:
+table(apply(tmp, 1, FUN=function(x) length(unique(x))))
+```   
+   
+Data frame including all distance models dij
+
+```{r}
+dModels <- list(Eu = distance2, Shecte = diShecte, Sheint = diSheint,
+                Shenu = diShenu, Forest=diveg)
+
+#HW:check whether matrices are symmetric
+sapply(dModels, function(ls) table(ls == t(ls)))
+
+save(dModels, file=paste0(here::here(),                           "/vignettes/Week7_Spatial_Linear_Models/dModels.Rdata"))
+``` 
+
+### Calculate Hanski's index
+
+In order to calculate Hanski's index, we first need to optimize the value of alpha for each distance model, using presence-absence data for the two time steps of 1989 and 2009. 
+
+The funciton 'get.alphafit' optimizes alpha for each model and stores the values in  table 'table.alpha..
+
+```{r}
+table.alpha <- matrix(NA, nrow=5)
+dimnames(table.alpha) <- list(models=(c("Eu", "Shecte", "Sheint",
+                                        "Shenu", "Forest")))
+
+nseq <-100
+alpha <- seq(0.1,2.5, length = nseq)
+
+get.alphafit <- function(alpha, d, pj, Op)
+{
+  expo<-exp(-alpha* d )
+  diag(expo)<-0
+  matr<-sweep(expo,2, pj, "*")
+  Si <-rowSums(sweep(matr, 2, Op/2, "*"), na.rm=TRUE)
+  mod<- glm(cbind(Op,2 -Op) ~ Si, family=binomial)
+  deviance(mod)
+}
+``` 
+     
+Parameters
+
+```{r}
+pj <- patches$Dc.09
+Op <- (patches$Dc.89 + patches$Dc.09)
+for(m in 1:length(dModels))
+{
+  table.alpha[m] <- (optimize(get.alphafit, interval=alpha,
+                              d=dModels[[m]],pj, Op)$minimum)
+}
+table.alpha
+``` 
+
+Get source patch parameters Aj and Nj 
+     
+NOTE HW: pop09 is a rank, but interpreted numerically here. Need to explain why this might be appropriate? (I recall that it produced the best results?)
+
+```{r}
+Aj <- patches$Ha
+Nj <- patches$pop09
+``` 
+
+
+## Part 2: Function to calculate Si index for each patch and each model dij
+
+Prepare empty table of connectivity index Si, for each combination of focal patch and distance model dij
+
+```{r}
+Si <- data.frame(matrix(NA,nrow(patches),ncol=15))
+     dimnames(Si) <- list(row.names(patches),
+     paste(rep(names(dModels), rep(3,5)), 
+           rep(c("pj", "Aj", "Nj"),5), sep="_"))
+Source<- data.matrix(data.frame(pj=pj, Aj=pj*Aj, Nj=Nj))
+     mod<-rep(1:5, rep(3,5))
+sb <- rep(1:3,5)
+``` 
+
+Function 'get.Si':
+
+```{r}
+get.Si <- function(alpha, d, Ap)
+{
+  expo<-exp(-alpha*d)
+  diag(expo)<-0
+  matr<-sweep(expo,2, Ap, "*")
+  S <- rowSums(sweep(matr, 2, Op/2, "*"), na.rm=TRUE)
+}
+```
+
+Calculate Si values:
+
+```{r}
+for (n in 1:ncol(Si))
+{
+  Si[,n] <- get.Si(alpha=table.alpha[mod[n]], d=dModels[[mod[n]]],
+                   Ap=Source[,sb[n]])
+}
+``` 
+
+Table with results Si (see DOC word file for abbreviations)
+
+```{r}
+head(Si)  
+``` 
+
+## Part 3: Select only those patches where the species was present 
+
+```{r}
+Si2 <-data.frame(Si, patch= patches$patch, Sampled = patches$Sampled)
+Si2$patch <- as.character(Si2$patch)
+#table(Si2$patch == names(System))
+System.65 <- System[which(Si2$Sampled=="1")]
+Si2 <- Si2[which(Si2$Sampled=="1"),]
+a <-order(Si2$patch)
+Si2 <- Si2[a,]
+System.65 <- System.65[a]
+#table(names(System.65) == Diversity$patch)
+``` 
+
+Table with only those patches where Dianthos was present
+
+```{r}
+dim(Si2)
+dim(Diversity)
+#table(Diversity$patch == Si2$patch)
+``` 
+
+NOTE HW: EXPORT COMBINED DATA
+```{r}
+Dianthus <- data.frame(Diversity, Si2, System=System.65)
+a <- match(as.character(Dianthus$patch), as.character(patches$patch))
+Dianthus <- data.frame(Dianthus, patches[a,])
+Dianthus <- data.frame(Dianthus[,c("patch", "samples", "pop09", "System", "intensity", "Ha", "Elements2008.4",  "Dc.89", "Dc.09", "F", "Ne", "I", "Ho", "He", "A", "PA", "FIS")], Dianthus[,15:29], Dianthus[,c("x", "y")])
+# Fix error?
+Dianthus[Dianthus$patch=="G21a", "pop09"] <- 2
+require(sp)
+sp::coordinates(Dianthus) <- ~ x +  y
+sp::proj4string(Dianthus)=CRS("+proj=tmerc +lat_0=0 +lon_0=9 +k=1 +x_0=3500000 +y_0=0 +ellps=bessel +datum=potsdam +units=m +no_defs") 
+#proj4string(Dianthus)=CRS("+proj=utm +zone=32 +ellps=WGS84 +datum=WGS84 +units=m #+no_defs") 
+ 
+save(Dianthus, file = paste0(here::here(),                           "/vignettes/Week7_Spatial_Linear_Models/Dianthus.Rdata"))
+
+``` 
+
+As we are using measures of genetic diversity at the population level, we should eliminate patches with less than six individuals to avoid effects of genetic drift and demographic stochasticity. 
+
+NOTE_HW: WHY <6? Allelic richness 'A' was calculated for those with >4, which includes "A20", "A44" and "A02". Also, why was "G21" dropped? Why not simply select those rows for which we have 'A'?
+
+```{r}
+#b <- c("A16", "A39", "A40", "A46", "A11", "G21a", "A20", "A44", "A02")
+#b <- match(b, as.character(Dianthus$patch))
+#Dianthus@data[b,c("samples", "A")]
+b <- c(1:nrow(Dianthus))[is.na(Dianthus$A)]     # Missing values for allelic richness
+
+Si2 <- Si2[-b,]
+
+#Si2 <- Si2[(Si2$patch)!="A16",] 
+#Si2 <- Si2[(Si2$patch)!="A39",] 
+#Si2 <- Si2[(Si2$patch)!="A40",] 
+#Si2 <- Si2[(Si2$patch)!="A46",] 
+#Si2 <- Si2[(Si2$patch)!="A11",] 
+#Si2 <- Si2[(Si2$patch)!="G21a",] 
+#Si2 <- Si2[(Si2$patch)!="A20",] 
+#Si2 <- Si2[(Si2$patch)!="A44",]  
+#Si2 <- Si2[(Si2$patch)!="A02",] 
+``` 
+
+Eliminate the same populations from the diversity data set. 
+
+NOTE HW: may use Dianthus dataset directly, not need to use 'Diversity' anymore.
+```{r}
+Diversity <- Diversity[-b,]
+
+#Diversity <- Diversity[(Diversity$patch)!="A16",]
+#Diversity <- Diversity[(Diversity$patch)!="A39",]
+#Diversity <- Diversity[(Diversity$patch)!="A40",]
+#Diversity <- Diversity[(Diversity$patch)!="A46",]
+#Diversity <- Diversity[(Diversity$patch)!="A11",]
+#Diversity <- Diversity[(Diversity$patch)!="G21a",]
+#Diversity <- Diversity[(Diversity$patch)!="A44",]
+#Diversity <- Diversity[(Diversity$patch)!="A20",]
+#Diversity <- Diversity[(Diversity$patch)!="A02",]
+``` 
+
+### Check the order of patches in the data sets
+
+Note HW: should not be necessary anymore.
+
+```{r}
+data.frame(patches= Si2$patch, patches= Diversity$patch)
+length(Si2$patch)
+length(Diversity$patch)
+
+Si <-Si2[,1:15]
+dim(Si)
+length(Diversity$patch)
+``` 
+
+## Part 4: Correlations of connectivity indices (15 models) with genetic diversity
+    
+### Correlations with allelic richness A
+
+To analyze expected heterozygosity, replace A by He.  
+
+```{r}
+for (i in 1:15)
+{
+  cat("\n", names(Si)[i],":", "\n")
+  #print(summary(lm(Diversity$A~ Si[,i])))
+  print(summary(lm(Dianthus$A[-b]~ Si[,i])))
+}
+``` 
+
+## Part 5. Model selection and cumulative factor importance for each parameter 
+
+```{r}
+require(MuMIn)
+``` 
+
+Here we fit all possible models to the genetic data in order to rank all possible combinations of predictors (5 distances dij and three source patch parameters Aj, Pj and Nj). 
+
+The criteria used to compare model performance are AICc and adjusted R-squared.
+
+First we generate linear models and then the function 'dredge' performs model selection. 
+
+The function 'get models' lists the best models, whereas 'importance' obtains the models with the best accumulated weights wij. The value of each model ranges between 0 and 1, where higher values indicate stronger support for the model. 
+
+Note: the argument 'm.lim = c(NA, 1)' specifies that only one predictor should be included at a time, e.g. A ~ Shenu_Aj. Otherwise, combinations of the 15 models could be included, e.g. A ~ Shenu_Aj + Shenu_Pj + Sheint_Aj....etc. 
+
+```{r}
+#fm2 <- lm((Dianthus$He[-b]) ~ ., data = Si)
+fm2 <- lm((Dianthus$A[-b]) ~ ., data = Si)
+options(na.action = "na.fail")
+(dd2 <- dredge(fm2,  m.lim = c(NA, 1), rank='AIC', extra="R^2"))
+top.models <- get.models(dd2, cumsum(c(0,weight)) <= .95)
+importance(top.models)
+``` 
+
+In this example, the goal is to identify which connectivity model dij (5 models) and which source patch parameter (three parameters Aj, pj and Nj) are the best for explaining genetic diversity. For this, we add, for each parameter, the model weights wij across all models that include the parameter. 
+
+The following code obtains this importance value for each parameter. 
+
+```{r}
+test <- strsplit(names(dd2), "_")
+test <- test[sapply(test, length)==2]
+Parameters <- matrix(unlist(test), length(test), 2, byrow=TRUE)
+dd.01 <- !is.na(data.matrix(dd2[,c(1:nrow(Parameters)+1)]))
+
+Models<- list()
+Models$Eu <- apply(dd.01[,Parameters[,1]=="Eu"],1,max)
+Models$Matrix<- apply(dd.01[,Parameters[,1]=="Forest"],1,max)
+Models$Shecte <- apply(dd.01[,Parameters[,1]=="Shecte"],1,max)
+Models$Sheint<- apply(dd.01[,Parameters[,1]=="Sheint"],1,max)
+Models$Shenu<- apply(dd.01[,Parameters[,1]=="Shenu"],1,max)
+
+Models$pj  <- apply(dd.01[,Parameters[,2]=="pj"],1,max)
+Models$Aj <- apply(dd.01[,Parameters[,2]=="Aj"],1,max)
+Models$Nj <- apply(dd.01[,Parameters[,2]=="Nj"],1,max)
+```
+
+### Relative importance of parameters
+
+```{r}
+Importance <- rep(NA,length(Models))
+names(Importance) <- names(Models)
+
+for(i in 1:length(Models))
+{
+  Importance[i] <- sum(dd2$weight * unlist(Models[i]))
+}
+``` 
+
+Sum of model weights wij for each model parameter. The higher the value, the stronger the support for the parameter. 
+      
+```{r}
+round(Importance,2)
+``` 
+
+### Figure with relative importance values
+
+```{r}
+barplot((Importance), ylim=c(0,1.0))
+lines(rep(6,2), c(0,1), lwd=2, lty=8)
+``` 
+
+## Part 6: Analysis of best model selected
+
+```{r}
+#sol <- lm((Dianthus$He[-b])~(Si$Sheint_pj))
+sol <- lm((Dianthus$A[-b])~(Si$Sheint_pj))
+summary(sol)
+``` 
+
+      
+   
+      
+      
+
+
