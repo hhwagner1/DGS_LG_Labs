@@ -265,8 +265,8 @@ We will use SNMF to estimate the number of genetic clusters (K) among our sample
 NOTE: THIS TAKES A LONG TIME! Mayb just present the result?
 
 ```{r}
-snmf2 <- LEA::snmf(paste0(here::here(), "/data/stickleback.geno"), 
-                   K=1:8, ploidy=2, entropy=T, alpha=100, project="new")
+#snmf2 <- LEA::snmf(paste0(here::here(), "/data/stickleback.geno"), 
+#                   K=1:8, ploidy=2, entropy=T, alpha=100, project="new")
 #snmf2 <- LEA::snmf("stickleback.geno", K=1:8, ploidy=2, entropy=T, 
 #                   alpha=100, project="new")
 ```
@@ -274,8 +274,8 @@ snmf2 <- LEA::snmf(paste0(here::here(), "/data/stickleback.geno"),
 We will use SNMF's cross-entropy criterion to infer the best estimate of K. The lower the cross-entropy, the better our model accounts for population structure. Sometimes cross-entropy continues to decline, so we might choose K where cross entropy first decreases the most.
 
 ```{r}
-par(mfrow=c(1,1))
-plot(snmf2, col="blue4", cex=1.4, pch=19)
+#par(mfrow=c(1,1))
+#plot(snmf2, col="blue4", cex=1.4, pch=19)
 ```
 
 The number of clusters is hard to determine, but four seems to be important and is similar to the results revealed by PCA. I will proceed assuming K=4. We will rerun SNMF using this setting.
@@ -353,6 +353,24 @@ for (i in 1:length(pops)){
                     y=coord.pop[i,2], labels="",
                     col=RColorBrewer::brewer.pal(K,"Paired"),radius=0.1)
 }
+```
+
+Alternative with plotGoogleMaps:
+Create map with pie charts depicting ancestry proportions:
+
+```{r}
+#coords <- data.frame(Longitude = coord.pop[,1], Latitude = coord.pop[,2])
+#ggmap::qmplot(x=Longitude, y=Latitude, data = coords, 
+#              source = "google", maptype = "terrain")
+
+qpop.df <- data.frame(qpop)
+names(qpop.df) <- c("A", "B", "C", "D")
+data <- sp::SpatialPointsDataFrame(coord.pop, qpop.df)
+sp::proj4string(data) <- sp::CRS("+init=epsg:4326")
+pies <- plotGoogleMaps::pieSP(data, zcol = c(1:4), max.radius = 100)
+pies$allele <- rep(names(qpop.df), nrow(qpop.df))
+api <- "https://maps.googleapis.com/maps/api/js??sensor=false&v=3.18&key=AIzaSyCVz08TBp-MDGikOTlpZEHkx5yL_LnlEUk"
+m <- plotGoogleMaps::plotGoogleMaps(pies, zcol = "allele")
 ```
 
 **Question 5:** 
