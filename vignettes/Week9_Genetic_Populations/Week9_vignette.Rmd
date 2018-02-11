@@ -262,6 +262,8 @@ Here, we will use sparse negative matrix factorization (SNMF) because it is fast
 
 We will use SNMF to estimate the number of genetic clusters (K) among our sampled populations.
 
+NOTE: THIS TAKES A LONG TIME! Mayb just present the result?
+
 ```{r}
 snmf2 <- LEA::snmf(paste0(here::here(), "/data/stickleback.geno"), 
                    K=1:8, ploidy=2, entropy=T, alpha=100, project="new")
@@ -294,13 +296,10 @@ qmatrix = LEA::Q(snmf, K = K)
 Plot results with a barplot similar to that used to represent STRUCTURE results
 
 ```{r}
-barplot(t(qmatrix), col=RColorBrewer::brewer.pal(9,"Paired"), border=NA, 
-        space=0, xlab="Individuals", ylab="Admixture coefficients")
-```
-
-Add population labels to the axis:
-
-```{r}
+barplot(t(qmatrix), col=RColorBrewer::brewer.pal(9,"Paired"), 
+        border=NA, space=0, xlab="Individuals", 
+        ylab="Admixture coefficients")
+#Add population labels to the axis:
 for (i in 1:length(pops)){
   axis(1, at=median(which(sample_sites==pops[i])), labels=pops[i])}
 ```
@@ -350,7 +349,8 @@ Create map with pie charts depicting ancestry proportions:
 plot(coord.pop, xlab = "Longitude", ylab = "Latitude", type = "n")
 maps::map(database='state',add = T, col = "grey90", fill = TRUE)
 for (i in 1:length(pops)){
-  mapplots::add.pie(z=qpop[i,], x=coord.pop[i,1], y=coord.pop[i,2], labels="",
+  mapplots::add.pie(z=qpop[i,], x=coord.pop[i,1], 
+                    y=coord.pop[i,2], labels="",
                     col=RColorBrewer::brewer.pal(K,"Paired"),radius=0.1)
 }
 ```
