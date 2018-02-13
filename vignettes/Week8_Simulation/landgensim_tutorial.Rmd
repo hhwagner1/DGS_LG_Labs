@@ -1,0 +1,277 @@
+---
+title: "landgensim_tutorial"
+author: "Bernd Gruber"
+date: "22 February 2016"
+output: pdf_document
+---
+
+# LandgenSimulation: A tutorial how to simulate a metapopulation on a resistance landscape using landgenreport function
+
+## Setup your computer
+
+#Install packages 
+
+We need to install the latest PopGenReport package (see www.popgenreport.org) and load this package and some additional packages
+```{r, warning=FALSE, message=FALSE}
+library(PopGenReport )  #load the package
+library(secr)  #to create a random habitat
+library(gdistance)
+
+```
+
+## Create a random landscape 
+
+We will use the randomHabitat() function from the secr package, but you can use mutiple different ways. E.g. simply load a png file or any other file format using the raster function (?raster::raster, see the examples in there).
+
+```{r }
+nx=50
+ny=50
+set.seed(555) #(to make sure we have the same example running)
+tempmask<-make.mask(nx=nx,ny=ny,spacing=1)
+r <- raster(randomHabitat(tempmask, p = 0.5, A = 0.5))
+#set non-habitat to friction values of 10
+values(r)[is.na(values(r))==T]<-10
+plot(r)
+```
+
+## Add populations to the landscape (using minimal distance)
+
+```{r, echo=TRUE}
+
+#we create a function that allows us to set up n subpopulations in the habitat only (non green areas)
+#the subpopulations should be at least mindist units apart
+createpops <- function(n, mindist, landscape, plot=TRUE)
+{  
+
+minx <- extent(landscape)@xmin #get the min and max  coordinates
+miny <- extent(landscape)@ymin #coordinates of the landscape
+maxx <- extent(landscape)@xmax
+maxy <- extent(landscape)@ymax
+
+cc<- 1
+coords <- data.frame(lx=NA, ly=NA)
+while (cc<= n )  #repeat until you have found n locations
+{
+  draw=FALSE
+  while (draw==FALSE)
+  {
+    x <- runif(1,minx,maxx)
+    y <- runif(1,miny,maxy)
+    if (landscape[cellFromXY(landscape,c(x,y) )]==1)  draw=TRUE #check if in the habitat
+  }
+
+coords[cc,] <- c(x,y)
+
+if (nrow(coords)>1) d <- min(dist(coords)) else d <- mindist+1 
+
+if (d > mindist) cc <- cc+1  #take the location only if distance is larger than mindist
+}
+if (plot==TRUE) 
+{
+plot(landscape)  
+points(coords, pch=16)
+}
+return( as.matrix( coords))
+}
+
+#test the function above.....
+createpops(n=8, mindist = 3, landscape = r, plot = TRUE)
+
+
+
+```
+
+
+#Initialise a metapopulation 
+
+We use init.popgensim to initialise a metapopulation based on the locations we created earlier. To do this we need to initialise a number of parameters (the locations of the subpopulations, the number of individuals per subpopulation, the number of loci and alleles per loci. For a full list check ?init.popgensim)
+
+To store all the parameters we create a list called para where we store all of them
+
+# A)    Define your metapopulation
+
+
+```{r}
+
+################################################################################
+#### Define Metapopulation
+################################################################################
+  
+para<- list()
+#Define populations (dynamics)
+para$n.pops=8
+para$n.ind=100
+
+para$sex.ratio <- 0.5
+#age distribution....
+
+para$n.cov <- 3 #number of covariates (before the loci in the data.frame, do not change this!!)
+
+
+################################################################################
+#### Define Popdynamics
+################################################################################
+
+#reproduction
+para$n.offspring = 2
+
+#migration
+para$mig.rate <- 0.1 
+
+#dispersal: exponential dispersal with maximal distance in map units
+para$disp.max=50   #average  dispersal of an individual in meters
+para$disp.rate = 0.05 #proportion of dispersing individuals
+
+#Define genetics
+para$n.allels <- 10
+para$n.loci <- 20
+para$mut.rate <- 0.001
+
+################################################################################
+#### Define cost distance method
+################################################################################
+
+para$method <- "leastcost" #rSPDdistance, commute
+para$NN <- 8  #number of neighbours for the cost distance method
+
+# A)    init simulation populations from scratch
+landscape<- r  #<-raster(system.file("external/rlogo.grd", package="raster"))
+
+ 
+ #Define x and y locations
+ para$locs <-createpops(n=para$n.pops, mindist = 3, landscape = r, plot = TRUE)
+ #give the population some names 
+ rownames(para$locs) <- LETTERS[1:para$n.pops]
+  
+  
+  #create a costdistance matrix 
+  cost.mat <- costdistances(landscape, para$locs, para$method, para$NN) #needed for the simulation
+  eucl.mat <- as.matrix(dist(para$locs))  #needed for the analysis later
+
+  
+#Plot your landscape with the populations....
+  
+  plot(landscape)
+  points(para$locs[,1], para$locs[,2], pch=16, cex=2, col="orange")
+  text(para$locs[,1],para$locs[,2], row.names(para$locs), cex=1.5)
+  
+  
+#check the parameter list
+  
+  para
+
+```
+
+# B) initialise your population on the landscape  
+Now finally we can initialise our population using the init function
+
+```{r}
+# B) initialise your population on the landscape  
+  simpops <- init.popgensim(para$n.pops, para$n.ind, para$sex.ratio, para$n.loci, para$n.allels, para$locs, para$n.cov )  
+  
+  
+```
+
+You may want to check the simpops object, which is simply a list of our subpopulation and each individual is coded in a single run in one of the subpopulations.
+
+```{r}
+
+names(simpops)  #the names of the subpopulations
+  
+head(simpops$A) # a list of the first 6 individuals of population A
+
+```
+
+We can also analyse our simpop  object. (e.g. calculate the pairwise Fst value between all the populations.  )
+To be able to do that we first need to convert it into a genind object (because many function need this type of object as input)
+
+```{r}
+
+gsp <- pops2genind(simpops, locs =para$locs)
+
+gsp #chekc the genind object
+summary(gsp)  #some summary statistics
+library(mmod)
+
+round(pairwise_Gst_Nei(gsp),3)
+
+#is there an effect of the landscape on the population structure 
+#(there should not be after initialisation)
+gen.mat <- pairwise.fstb(gsp) #around 150 times faster than mmod::pairwise_Gst_Nei, but slightly
+#different....
+ round(gen.mat ,3)
+  # partial mantel test ?wassermann
+  wassermann(eucl.mat = eucl.mat, cost.mats = list(cost=cost.mat), gen.mat = gen.mat, 
+             plot=F)$mantel.tab
+ 
+
+
+```
+
+Check the pairwise Fst values, why are they so low? 
+
+Now we can run our simulation by simply passing our simpops, with some additional parameters that are needed for the simulation. The number of generation the simulation should run is in the steps parameter. (check ?run.popgensim for a description of all parameters).
+
+Important to understand is the idea of the cost.mat (which is the cost matrix that is used for the distance between subpopulation). The n.alleles, n.ind cannot be different from the initialisation.
+
+# C) run your population years steps on the landscape
+  
+ 
+
+```{r}
+
+# C) run your population years steps on the landscape
+  
+  
+  simpops <- run.popgensim(simpops, steps=3, cost.mat, n.offspring=para$n.offspring, n.ind=para$n.ind,
+                           para$mig.rate, para$disp.max, para$disp.rate, para$n.allels, para$mut.rate,
+                           n.cov=para$n.cov, rec="none")
+
+```
+
+
+In essence we were running a metapopulation with 100 individuals per subpopulation on our resistance landscape for 3 generations. The question is now was that enough time to create an effect on population structure?
+We should check now the pairwise Fst values and then do a landscape genetic analysis using partial mantel tests.
+
+# D) Analyse your simulated population using an LGA (partial mantel test)
+
+```{r}
+
+ #convert to genind to calculate pairwise fsts (this )
+  gsp <- pops2genind(simpops, para$locs, para$n.cov)
+  
+  #calculate your genetic distance matrix e.g. fst or D
+  gen.mat <- pairwise.fstb(gsp)   
+  round(gen.mat ,3)
+  # partial mantel test ?wassermann
+  wassermann(eucl.mat = eucl.mat, cost.mats = list(cost=cost.mat), gen.mat = gen.mat, 
+             plot=F)$mantel.tab
+ 
+
+  
+```
+
+
+Now rerun the simulation a further 20 steps and check again....
+```{r}
+  simpops <- run.popgensim(simpops, steps=20, cost.mat, n.offspring=para$n.offspring, n.ind=para$n.ind,
+                          para$mig.rate, para$disp.max, para$disp.rate, para$n.allels, para$mut.rate,
+                          n.cov=para$n.cov, rec="none")
+ #convert to genind to calculate pairwise fsts (this )
+  gsp <- pops2genind(simpops, para$locs, para$n.cov)
+  
+  #calculate your genetic distance matrix e.g. fst or D
+  gen.mat <- pairwise.fstb(gsp)    #around 150 times faster than mmod::pairwise_Gst_Nei !!!!!!!!!!, 
+  #but only works with simulated population of equal size
+ round(gen.mat ,3)
+  # partial mantel test ?wassermann
+  wassermann(eucl.mat = eucl.mat, cost.mats = list(cost=cost.mat), gen.mat = gen.mat, 
+             plot=F)$mantel.tab
+```
+
+You can now "play" with the simulator using different landscape, number of subpopulations, different locations, number of alleles, number of loci etc. For example rerun your analysis for only 4 subpopulations. How does this affect your ability to detect an effect of the landscape?
+
+
+
+
+
