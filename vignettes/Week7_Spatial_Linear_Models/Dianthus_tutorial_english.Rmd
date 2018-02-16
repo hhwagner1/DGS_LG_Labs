@@ -283,16 +283,20 @@ NOTE HW: EXPORT COMBINED DATA
 Dianthus <- data.frame(Diversity, Si2, System=System.65)
 a <- match(as.character(Dianthus$patch), as.character(patches$patch))
 Dianthus <- data.frame(Dianthus, patches[a,])
-Dianthus <- data.frame(Dianthus[,c("patch", "samples", "pop09", "System", "intensity", "Ha", "Elements2008.4",  "Dc.89", "Dc.09", "F", "Ne", "I", "Ho", "He", "A", "PA", "FIS")], Dianthus[,15:29], Dianthus[,c("x", "y")])
+Dianthus <- data.frame(Dianthus[,c("patch", "samples", "pop09", "System", "intensity", "Ha", 
+                                   "Elements2008.4",  "Dc.89", "Dc.09", "I", "Ho", "He", 
+                                   "A", "FIS")], Dianthus[,15:29], Dianthus[,c("x", "y")])
 # Fix error?
 Dianthus[Dianthus$patch=="G21a", "pop09"] <- 2
 require(sp)
 sp::coordinates(Dianthus) <- ~ x +  y
-sp::proj4string(Dianthus)=CRS("+proj=tmerc +lat_0=0 +lon_0=9 +k=1 +x_0=3500000 +y_0=0 +ellps=bessel +datum=potsdam +units=m +no_defs") 
-#proj4string(Dianthus)=CRS("+proj=utm +zone=32 +ellps=WGS84 +datum=WGS84 +units=m #+no_defs") 
+sp::proj4string(Dianthus) = CRS("+init=epsg:31468") 
+tmp <- sp::spTransform(Dianthus, CRS("+init=epsg:4326"))
+tmp <- data.frame(Longitude = tmp@coords[,1], Latitude = tmp@coords[,2])
+Dianthus@data <- data.frame(Dianthus@data, tmp)
  
-save(Dianthus, file = paste0(here::here(),                           "/vignettes/Week7_Spatial_Linear_Models/Dianthus.Rdata"))
-
+save(Dianthus, file = paste0(here::here(),                           
+                             "/vignettes/Week7_Spatial_Linear_Models/Dianthus.RData"))
 ``` 
 
 As we are using measures of genetic diversity at the population level, we should eliminate patches with less than six individuals to avoid effects of genetic drift and demographic stochasticity. 
