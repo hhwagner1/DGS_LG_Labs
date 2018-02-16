@@ -1,6 +1,6 @@
 ---
 title: "Week 8: Simulation"
-author: "Bernd Gruber"
+author: "Bernd Gruber, Erin Landguth & Helene Wagner"
 date: "`r Sys.Date()`"
 show_toc: true
 output:
@@ -316,7 +316,220 @@ PopGenReport::wassermann(eucl.mat = eucl.mat, cost.mats = list(cost=cost.mat),
 
 You can now "play" with the simulator using different landscape, number of subpopulations, different locations, number of alleles, number of loci etc. For example rerun your analysis for only 4 subpopulations. How does this affect your ability to detect an effect of the landscape?
 
-NOTE HW: SHOW HOW TO RUN REPLICATES ACROSS FACTOR LEVELS AND SYNTHESIZE RESULTS?
+
+## 6. Run simulator using a previously defined parameter set
+
+Once the simulator works and you are certain that you understand how the simulator needs to be set up for a single run, in almost all studies on simulations you want to be able to re-run the simulator in an automatized way. There are several reasons why you want to do that.
+
+1. You want to perform a sensitivity analysis on a single parameter, which means, try to find how much does the output (e.g. pairwise Fst between subpopulations) change when you vary an input parameter (e.g. number of loci). 
+2. You want to explore the "complete" parameter space, which means, instead of changing  values of a single input parameter you want to change all parameters (within certain levels) and run their combinations. 
+3. Another reason is that you want to create a simulated test data set that forms the backbone of your future studies.
+
+So we would like to do the following. 
+
+- a) Specify and record all the parameter combinations that you would like to run.  
+- b) Run the simulator with every combination 
+- c) [Optional] save your complete simulation run. ( recommended, but sometimes prohibitive due to needed resources) or only a calculated summary.
+- d) Read in your simulations, analyse them and synthesize your results via additional statistics, tests, plots.
+- e) Publish an enormously important paper....
+
+
+Admittedly there are several different approaches and as it seems every modeller has a slightly different way to achieve the first four steps. One approach is basically to create a parameter file that records all the parameter setting for each run. Another approach is to create so called scripts for every single run. The advantage here is that scripts can be easily distributed across different cores and machines and therefore this approach is easy to parallelise your runs, which sometimes is necessary. Finally the approach I will present here (also because of pratical reason) is to create an R data.frame that stores all the parameter settings and we run all combinations in serial. 
+
+
+Okay before we start we need to think about what kind of parameters we want to explore. I would like to do the following runs. Run our simulations as above (same parameter settings) for varying time steps (say between 5 to 105 years in steps of 20). As output I would still like to record the Fst value, but also the full genetic data set and the parameters used to run the simulation.
+
+
+In addition I want to repeat each run say 5 times (most often you would do more repetitions) to check how much general variation there is between runs with exactly the same parameter combination. 
+
+### a) Specify and record the parameter combinations
+
+
+Let's us define the time steps we would like to run via:
+
+```{r}
+timesteps <- seq(from=5 , to=105, by=20)
+
+```
+
+And also the number of repeats via:
+
+```{r}
+repeats <- 1:5
+```
+
+Now we would like to have data.frame that store all possible combinations for those two parameters. As simple way to do that in R, is to use the ```expand.grid``` function.
+
+```{r}
+para.space <- expand.grid(rep=repeats, time=timesteps)
+head(para.space)
+#number of combinations
+nrow(para.space)
+
+```
+
+As you can see this results in 30 combinations. The beauty of this approach is that it is very flexible and adaptable to runs over other parameter combinations.
+
+Now to the next step...
+
+### b) Run the simulator over every parameter combination.
+
+Remember our parameter are all defined in the para object and we want to keep them, except running the simulation for different number of years.
+
+In general a single run of our simulator runs via:
+
+```{r, eval =F}
+
+###No need to run this###
+#initialize
+simpops <- PopGenReport::init.popgensim(para$n.pops, para$n.ind, para$sex.ratio, 
+                            para$n.loci, para$n.allels, para$locs, para$n.cov )  
+#run for 20 generations
+simpops <- PopGenReport::run.popgensim(simpops, steps=20, cost.mat, 
+                         n.offspring=para$n.offspring, n.ind=para$n.ind,
+                         para$mig.rate, para$disp.max, para$disp.rate, 
+                         para$n.allels, para$mut.rate,
+                         n.cov=para$n.cov, rec="none")
+
+
+
+```
+
+
+What is now left to be done is to write a loop around a single run and change the parameter values as needed. We do that here with a for-loop over the combinations in the para.space data.frame.
+
+```{r, eval=F}
+
+#again no need to run it
+for (i in 1:nrow(para.space))
+{
+###No need to run this###
+#initialize
+simpops <- PopGenReport::init.popgensim(para$n.pops, para$n.ind, para$sex.ratio, 
+                            para$n.loci, para$n.allels, para$locs, para$n.cov )  
+#run for para.space$time[i] generations
+simpops <- PopGenReport::run.popgensim(simpops, steps=para.space$time[i], cost.mat, 
+                         n.offspring=para$n.offspring, n.ind=para$n.ind,
+                         para$mig.rate, para$disp.max, para$disp.rate, 
+                         para$n.allels, para$mut.rate,
+                         n.cov=para$n.cov, rec="none")
+
+}
+```
+
+
+Have a close look at the change. The only difference is now that we run the simulation nrow(para.space) (=30) times. This by itself is not really useful yet, because we need to store the simulation runs somehow, so we can collect them afterwards to calculate a summary statistics and analyse the runs. When we save the simluation in a file you may ask how do store the repeats seperately as they are not part of the parameter definition. One approach would be to have a different file name for every repeat, but a in my view cleaner approach is to store the all simulation outputs and also store the complete parameter and input information in a file, so everything that is need is in one place. A nice way to do that in R is to create a so called list object that stores all in a single object, which can be saved (and is automatically packed) as an R object.
+
+
+### c) Save you complete simulation run (input and output)
+
+First I create on my computer a subfolder named "simout" and set the working directory there. In this tutorial I set it to R_temp (to make sure the tutorials runs everywhere)
+
+```{r, eval=F}
+#somewhere sensible e.g.
+outpath <- "D:/Bernd/DGS"
+
+```
+
+
+
+
+
+```{r}
+
+#set directory to simout
+#setwd(outpath)
+#script needs to have a subfolder simout, if not there it will be created
+if (!dir.exists("simout")) dir.create("simout")
+
+#create a timer (just to know how long it will take roughly)
+
+timer0 <- round(proc.time()[3],2)
+
+
+for (i in 1:nrow(para.space))
+{
+###No need to run this###
+#initialize
+simpops <- PopGenReport::init.popgensim(para$n.pops, para$n.ind, para$sex.ratio, 
+                            para$n.loci, para$n.allels, para$locs, para$n.cov )  
+#run for para.space$time[i] generations
+simpops <- PopGenReport::run.popgensim(simpops, steps=para.space$time[i], cost.mat, 
+                         n.offspring=para$n.offspring, n.ind=para$n.ind,
+                         para$mig.rate, para$disp.max, para$disp.rate, 
+                         para$n.allels, para$mut.rate,
+                         n.cov=para$n.cov, rec="none")
+#convert to genind object (smaller)
+gi <- PopGenReport::pops2genind(simpops)
+
+#create a list of all I want to collect
+sim <- list(para.space=para.space[i,], para=para, landscape=landscape, cost.mat=cost.mat, gi=gi )
+#save everything in an output folder (with a consecutive number, with three leading zeros, so the file sorting is nicer)
+save(sim, file = paste0("./simout/sim_time5-105_rep5_",sprintf("%03i",i) ,".rdata"))
+
+cat(paste("Finished run:", i,"out of",nrow(para.space),".So far took:", round(proc.time()[3]-timer0,2),"sec.\n"))
+flush.console()
+}
+
+
+
+```
+
+### d) Analyze and synthesize results 
+
+If you check your output folder (simout) you should see 30 files.
+
+```{r}
+head(dir("./simout"))
+```
+
+Now we are at step D where we need to read in all our files one by one. Calculate maybe some statistics and plot our data. Again this could be easy, but be aware if you have thousands of files it could take quite some time and memory. The most convinient way is to load everyting and store it in a list, so we can access all of our simulations from memory. I will show you how to do this in the example below, but be aware in larger simulations (think millions of runs) this is not possible and we would load a single simulation, calculate a statistic, store only the result in a table and free the memory for the next simulation run.
+
+So now let us load our simulation runs. There is one caveat in the way we stored our data here. In R if you use the load command the simulation run appears as a list object with the name of 'sim' in our workspace (we saved it under that name). So once we load the second object the first is overwritten. So if we want to keep it we need to store it somewhere else.
+
+```{r}
+
+
+res <- data.frame(rep=NA, time=NA, fst=NA)
+reslist <- list()
+#load all files in the folder
+filenames <- list.files(path="./simout", pattern="sim")
+
+for (i in 1:length(filenames))
+{
+  #creates a sim object
+  load(paste0("./simout/",filenames[i]))
+  #now let us take what we need from the simulation
+  
+  res [i,1:2] <- sim$para.space
+  gi <- sim$gi
+  
+  #calculate a summary statistic
+  pfst <- mean(PopGenReport::pairwise.fstb(gi))
+  res [i,3] <- pfst
+  
+  #now for convinience store everyting in a long list, 
+  reslist[[i]]<- sim
+}
+
+
+```
+
+You can look at the res data.frame and check the results. The next step would be to visualise the results (e.g. plot runs over times and color by rep).
+
+A quick way to do that is to use ggplot. 
+
+For example:
+
+```{r}
+
+ggplot2::ggplot(res, ggplot2::aes(x=time, y=fst, colour=factor(rep)))+ ggplot2::geom_point()
+```
+
+Now it is again time for you to experiment. For example, why not set up a simulation that varies the number of loci. Or as you may have seen even after 100 generation there was no sign that the mean pairwise Fst value is levelling off. So how long do you have to run a simulation in terms of time to see this (be aware takes longer)?
+
+Have fun and please give us feed back what you think about this tutorial. [Bernd Gruber](mailto:bernd.gruber@canberra.edu.au), [Erin Landguth](erin.landguth@gmail.com), [Helene Wagner](mailto:helene.wagner@utoronto.ca).
+
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 LandGenCourse::detachAllPackages()
