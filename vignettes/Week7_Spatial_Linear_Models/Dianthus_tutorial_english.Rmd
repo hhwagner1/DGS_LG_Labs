@@ -293,7 +293,7 @@ tmp <- sp::spTransform(Dianthus, CRS("+init=epsg:4326"))
 tmp <- data.frame(Longitude = tmp@coords[,1], Latitude = tmp@coords[,2])
 Dianthus@data <- data.frame(Dianthus@data, tmp)
  
-save(Dianthus, file = paste0(here::here(),                           "/vignettes/Week7_Spatial_Linear_Models/Dianthus.Rdata"))
+save(Dianthus, file = paste0(here::here(),                           "/vignettes/Week7_Spatial_Linear_Models/Dianthus.RData"))
 
 ``` 
 
