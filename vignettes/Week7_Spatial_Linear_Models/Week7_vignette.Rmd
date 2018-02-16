@@ -245,6 +245,8 @@ Quite a bit of the spatial autocorrelation in allelic richness can be explained 
 One way to account for spatial autocorrelation in the residuals is to fit a Generalized Least Squares model (GLS) with a spatially autocorrelated error structure. 
 See also: http://rfunctions.blogspot.ca/2017/06/how-to-identify-and-remove-spatial.html
 
+### a) Plot empirical variogram
+
 The error structure in a GLS is defined in a geostatistical framework, based on a variogram and as a function of distance between observations. Hence we start with plotting an empirical variogram of the residuals, with a smooth line. Here we specify 'resType = "normalized", which means that the variogram will be fitted to the normalized residuals of the model. The expected value of the semivariance will be 1.
 
 ```{r}
@@ -266,6 +268,8 @@ Question:
 - Estimate the range of the variogram from the intersection of the smooth line with the horizontal line.
 - Estimate the nugget effect from the intercept at Distance = 0.
 
+### b) Fit variogram models
+
 We can ask R to fit different types of variogram models to this empirical variogram. The model family (e.g., exponential, gaussian, spherical) determines the general shape of the curve that will be fitted. With 'nugget=T', we indicate that a nugget effect should be fitted. 
 
 ```{r}
@@ -284,6 +288,8 @@ spherical.autocor <- nlme::gls( A ~ PatchSize + IBR, data = Dianthus.df,
 ratio.autocor <- nlme::gls( A ~ PatchSize + IBR, data = Dianthus.df, 
                             correlation = nlme::corRatio(form = ~ x + y, nugget=T))
 ```
+
+### c) Select best-fitting model
 
 Now we compare all models for which we did not get an error message:
 
@@ -369,7 +375,7 @@ See tutorial for 'spmoran' package: https://arxiv.org/ftp/arxiv/papers/1703/1703
 
 Both GLS and SAR fitted a spatially correlated error structure of a relatively simple form to the data. Gene flow could be more complex and for example, could create spatial autocorrelation structure that is not the same in all directions or in all parts of the study area. Moran Eigenvector Maps (MEM) allows a more flexible modeling of spatial structure in the data. In spatial filtering, we use MEM spatial eigenvectors to account for any spatial structure while fitting and testing the effect of our predictors.
 
-### Default method
+### a) Default method
 
 The new package 'spmoran' makes this really easy. First, we create the MEM spatial eigenvectors. This implies defining neighbors and weights, but this is well hidden in the code below. The function 'meigen' here takes the coordinates, calculates a minimum spanning tree (so that each site has at least one neighbour), and finds the maximum distance 'h' from the spanning tree. It then calculates neighbor weights as exp(-dij / h). 
 
@@ -399,7 +405,7 @@ e_res$e
 - Again, PatchSize is statistically significant but not IBR.
 - 'adjR2' is high (0.437), but this includes the selected MEM spatial eigenvectors! 
 
-### Using a custom connectivity matrix
+### b) Using a custom connectivity matrix
 
 We know already that 'listw.d1' fit the data well, so let's re-run the model with our own definition of spatial weights. With the funciton 'listw2mat', we convert from 'listw' format to a full connnectivity matrix. 
 
@@ -420,6 +426,10 @@ Questions:
 - Does this model fit the data better? Look for a lower AIC. In addition, you can compare the adjusted R-squared. 
 - What could cause a difference in model performance?
 - Does this affect the results for PatchSize and IBR? Compare both parameter estimates and p-value between two two models.
+
+### c) Plot spatial eigenvectors
+
+So far, we have treated the MEM spatial eigenvectors as a black box. What kind of patterns do they represent? 
 
 ### Random effect model
 
