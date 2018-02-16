@@ -256,6 +256,7 @@ summary(mod.gls.PatchSize)
 
 semivario <- nlme::Variogram(mod.gls.PatchSize, form = ~x  + y, 
                              resType = "normalized")
+
 plot(semivario, smooth = TRUE)
 lattice::trellis.focus("panel", 1, 1)
 lattice::panel.abline(h=1)
