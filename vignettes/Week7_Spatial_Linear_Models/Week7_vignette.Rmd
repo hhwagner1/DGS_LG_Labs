@@ -23,6 +23,7 @@ This worked example shows:
 - How to fit a model with spatially autocorrelated errors (GLS).
 - How to fit a spatial simultaneous autoregressive error model (SAR).
 - How to perform spatial filtering with Moran eigenvector maps (MEM).
+- How to fit a spatially varying coefficients model (SVC).
 
 ### b) Data set
 
@@ -301,7 +302,7 @@ MuMIn::model.sel(model.lm, mod.corExp, mod.corGaus,
 The list sorts the models, with the best model on top. The last column 'weight' contains the model weight, which indicate how much support there is for each model, given all other models in the set (see Week 12). Here, the exponential model fitted best, though the ratio model and the model without a spatially correlated error structure fitted the data almost equally well.
 
 ```{r}
-summary(exponential.autocor)  
+summary(mod.corExp)  
 ```
 
 The fitted model with the exponential error structure shows a significant effect for PatchSize but not for the IBR term.
@@ -309,7 +310,7 @@ The fitted model with the exponential error structure shows a significant effect
 We don't get an R-squared value directly, but we can calculate a pseudo R-squared from a regression of the response 'A' on the fitted values.
 
 ```{r}
-summary(lm(A ~ fitted(exponential.autocor), data = Dianthus.df))$r.squared
+summary(lm(A ~ fitted(mod.corExp), data = Dianthus.df))$r.squared
 summary(mod.lm.PatchSize)$r.squared
 ```
 
@@ -317,18 +318,19 @@ The pseudo R-squared is almost identical to the R-squared of the non-spatial 'lm
 
 Let's check some residual plots - in this case, we have to construct them ourselves.
 
-```{r fig.show='hold'}
-plot(fitted(exponential.autocor), residuals(exponential.autocor))
+```{r fig.height=3, fig.width=7}
+par(mfrow=c(1,2), mar=c(4,4,1,1))
+plot(fitted(mod.corExp), residuals(mod.corExp))
 abline(h=0,lty=3)
 
-qqnorm(residuals(exponential.autocor))
-qqline(residuals(exponential.autocor))
+qqnorm(residuals(mod.corExp), main="")
+qqline(residuals(mod.corExp))
 ```
 
 The normal probability plot still looks about the same.
 
 ```{r}
-semivario <- nlme::Variogram(exponential.autocor, form = ~ x + y, 
+semivario <- nlme::Variogram(mod.corExp, form = ~ x + y, 
                              resType = "normalized")
 plot(semivario, smooth = TRUE)
 lattice::trellis.focus("panel", 1, 1)
@@ -444,7 +446,7 @@ meigw  <- spmoran::meigen( cmat = cmat.d1 )
 sfw.res <- spmoran::esf( y=Dianthus.df$A, x=Dianthus.df[,c("PatchSize", "IBR")],
                        meig=meigw, fn = "r2" )
 sfw.res$b
-sfw.res$r
+tibble::as.tibble(sfw.res$r)
 sfw.res$e
 ```
 
@@ -506,14 +508,14 @@ The previous model selected 15 MEM spatial eigenvectors, and thus fitted 15 addi
 sfr.res <- spmoran::resf( y=Dianthus.df$A, x=Dianthus.df[,c("PatchSize", "IBR")], 
                meig = meigw, method = "reml" ) 
 sfr.res$b
-sfr.res$s
-sfr.res$r
+tibble::as.tibble(sfr.res$r)
 sfr.res$e
+sfr.res$s
 ```
 
 As in Week 6 lab, the conditional R-squared is the variance explained by the fixed effects (PatchSize and IBR) and the random effects (significant MEM spatial eigenvectors) together. It is adjusted for the number of effects that were estimated.
 
-Note: we can't compare AIC with the previous models, as the model was fitted with 'reml'. 
+Note: we can't compare AIC with the previous models, as the model was fitted with 'reml'.
 
 We get an additional output 'sfr.res$s' with two parameters: 
 
@@ -526,7 +528,7 @@ See: https://arxiv.org/ftp/arxiv/papers/1703/1703.04467.pdf
 
 Now comes the coolest part! 
 
-So far, we have fitted the same model for all sites. Spatially weighted regression would allow relaxing this. Spatial filtering with MEM can be used to accomplish the same goal. The main advantage is that we can visualize how the slope parameter estimates, and their p-values, vary across the study area! This is a great exploratory tool that can help us better understand what is going on. 
+So far, we have fitted the same model for all sites. Geographically weighted regression (GWR) would allow relaxing this. Spatial filtering with MEM can be used to accomplish the same goal, and the 'spmoran' tutorial calls this a 'Spatially Varying Coefficients' model (SVC). The main advantage is that we can visualize how the slope parameter estimates, and their p-values, vary across the study area! This is a great exploratory tool that can help us better understand what is going on. 
 
 ### Model with PatchSize and IBR
 
