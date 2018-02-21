@@ -9,6 +9,7 @@ output:
     fig_width: 4 
     fig_height: 3.5
 vignette: >
+
   %\VignetteIndexEntry{Week 4: Metapopulation Genetics}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
