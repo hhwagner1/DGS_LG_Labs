@@ -534,8 +534,8 @@ How do we store the repeats seperately in a file? One approach would be to have 
 First we create in our current R project folder a subfolder named "simout".
 
 ```{r, eval=F}
-if(!dir.exists(paste0(here::here(),"/output/simout"))) 
-    dir.create(paste0(here::here(),"/output/simout"))
+if(!dir.exists(paste0(here::here(),"/output"))) 
+    dir.create(paste0(here::here(),"/output/simout"), recursive=TRUE)
 ```
 
 **NOTE HW: I have replace 'rdata' by 'RData'.
@@ -561,19 +561,17 @@ The list 'sim' will contain the following elements. Note: the name is repeated (
 - **gi**: the genind object that contains the genotypes at the end of the simulation.
 
 ```{r}
-
-#create a timer (just to know how long it will take roughly)
-
+# create a timer (just to know how long it will take roughly)
 timer0 <- round(proc.time()[3],2)
 
 for (i in 1:nrow(para.space))
 {
-  #initialize
+  # initialize
   simpops.0 <- PopGenReport::init.popgensim(para$n.pops, para$n.ind, 
                            para$sex.ratio, para$n.loci, para$n.allels, 
                            para$locs, para$n.cov )  
   
-  #run for para.space$time[i] generations
+  # run for para.space$time[i] generations
   simpops <- PopGenReport::run.popgensim(simpops.0, 
                            steps=para.space$time[i], cost.mat, 
                            n.offspring=para$n.offspring, n.ind=para$n.ind,
@@ -581,18 +579,17 @@ for (i in 1:nrow(para.space))
                            para$n.allels, para$mut.rate,
                            n.cov=para$n.cov, rec="none")
   
-  #convert to genind object (smaller)
+  # convert to genind object (smaller)
   gi <- PopGenReport::pops2genind(simpops)
   
-  #create a list of all I want to collect
+  # create a list of all I want to collect
   sim <- list(para.space=para.space[i,], para=para, 
               landscape=landscape, cost.mat=cost.mat, gi=gi)
   
-  #save everything in an output folder (with a consecutive number, with three leading zeros, so the file sorting is nicer)
+  # save everything in an output folder (with a consecutive number, with three leading zeros, so the file sorting is nicer)
+
   save(sim, file = paste0(here::here(),"/output/simout/sim_time5-45_rep5_",
                           sprintf("%03i",i) ,".RData"))
-#  save(sim, file = paste0("./simout/sim_time5-45_rep5_",
-#                          sprintf("%03i",i) ,".RData"))  
   
   cat(paste0("Finished run: ", i," out of ",nrow(para.space),
             ". So far, it took: ", round(proc.time()[3]-timer0,2)," sec.\n"))
