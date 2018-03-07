@@ -35,16 +35,22 @@ All required packages should have been installed already when you installed 'Lan
 ```{r message=FALSE, warning=TRUE}
 library(LandGenCourse)
 library(PopGenReport )   #load the package
-library(secr)            #to create a random habitat
-library(gdistance)
-library(mmod)
-library(raster)
-library(tibble)
-library(here)
-library(ggplot2)
-library(Sunder)   # requires mnormt
+#library(secr)            #to create a random habitat
+#library(gdistance)
+#library(mmod)
+#library(raster)
+#library(tibble)
+#library(here)
+#library(ggplot2)
+#library(Sunder)   # requires mnormt
 ```
 
+Package 'secr' not automatically installed with 'LandGenCourse':
+
+```{r message=FALSE, warning=TRUE}
+if(!require(secr)) install.packages("secr")
+#library(secr)
+```
 ## 2. Initialize a landscape
 
 ### a) Create a random landscape 
@@ -70,7 +76,8 @@ The function 'raster' of the 'secr' package (NOT from the 'raster' package) conv
 Note: there may be a warning about non-missing arguments, you can ignore it.
 
 ```{r }
-r <- secr::raster(randomHabitat(as.mask(tempgrid), p = 0.5, A = 0.5))
+r <- secr::raster(secr::randomHabitat(secr::as.mask(tempgrid), 
+                                      p = 0.5, A = 0.5))
 table(raster::values(r), exclude="")
 ```
 
@@ -312,7 +319,7 @@ gen.mat <- PopGenReport::pairwise.fstb(gsp)
 round(gen.mat ,3)
 ```
 
-Partial mantel test:
+Partial Mantel test:
 
 ```{r}
 PopGenReport::wassermann(eucl.mat = eucl.mat, cost.mats = list(cost=cost.mat), 
@@ -414,46 +421,7 @@ Let's test it:
 getSunder()
 ```
 
-## 5. Run simulations and analyze results
-
-### a) Run for a longer time
-
-Now rerun the simulation a further 20 steps and check again....
-
-```{r}
-simpops <- PopGenReport::run.popgensim(simpops.0, steps=20, cost.mat, 
-                         n.offspring=para$n.offspring, n.ind=para$n.ind,
-                         para$mig.rate, para$disp.max, para$disp.rate, 
-                         para$n.allels, para$mut.rate,
-                         n.cov=para$n.cov, rec="none")
-```
-
-Convert to genind to calculate pairwise Fst.
-
-```{r}
-gsp <- PopGenReport::pops2genind(simpops, para$locs, para$n.cov)
-```
-
-Calculate your genetic distance matrix e.g. fst or D.
-
-```{r}
-gen.mat <- PopGenReport::pairwise.fstb(gsp)    
-round(gen.mat ,3)
-```
-
-Partial mantel test.
-
-```{r}
-PopGenReport::wassermann(eucl.mat = eucl.mat, cost.mats = list(cost=cost.mat), 
-             gen.mat = gen.mat, plot=F)$mantel.tab
-```
-
-### b) Play with simulator to evaluate different scenarios
-
-You can now "play" with the simulator using different landscape, number of subpopulations, different locations, number of alleles, number of loci etc. For example rerun your analysis for only 4 subpopulations. How does this affect your ability to detect an effect of the landscape?
-
-
-## 6. Run simulator using a previously defined parameter set
+## 5. Run simulator using a previously defined parameter set
 
 Once the simulator works and you are certain that you understand how the simulator needs to be set up for a single run, in almost all studies on simulations you want to be able to re-run the simulator in an automatized way. There are several reasons why you want to do that.
 
