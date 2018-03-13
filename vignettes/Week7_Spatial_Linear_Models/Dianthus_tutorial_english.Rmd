@@ -283,6 +283,7 @@ NOTE HW: EXPORT COMBINED DATA
 Dianthus <- data.frame(Diversity, Si2, System=System.65)
 a <- match(as.character(Dianthus$patch), as.character(patches$patch))
 Dianthus <- data.frame(Dianthus, patches[a,])
+
 Dianthus <- data.frame(Dianthus[,c("patch", "samples", "pop09", "System", "intensity", "Ha", 
                                    "Elements2008.4",  "Dc.89", "Dc.09", "I", "Ho", "He", 
                                    "A", "FIS")], Dianthus[,15:29], Dianthus[,c("x", "y")])
@@ -290,6 +291,7 @@ Dianthus <- data.frame(Dianthus[,c("patch", "samples", "pop09", "System", "inten
 Dianthus[Dianthus$patch=="G21a", "pop09"] <- 2
 require(sp)
 sp::coordinates(Dianthus) <- ~ x +  y
+
 sp::proj4string(Dianthus) = CRS("+init=epsg:31468") 
 tmp <- sp::spTransform(Dianthus, CRS("+init=epsg:4326"))
 tmp <- data.frame(Longitude = tmp@coords[,1], Latitude = tmp@coords[,2])
