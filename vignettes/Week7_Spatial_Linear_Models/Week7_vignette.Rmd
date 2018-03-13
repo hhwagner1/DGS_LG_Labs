@@ -1,3 +1,4 @@
+
 ---
 title: "Week 7: Spatial Linear Models"
 author: "Helene Wagner and Yessica Rico"
@@ -679,3 +680,4 @@ This is a very different map of results!
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 LandGenCourse::detachAllPackages()
 ```
+
