@@ -1,0 +1,385 @@
+---
+title: "Detecting multilocus adaptation using Redundancy Analysis (RDA)"
+---
+
+## Introduction
+
+The purpose of this vignette is to illustrate the use of **Redundancy Analysis (RDA)** as a genotype-environment association (GEA) method to detect loci under selection (Forester et al., 2018). RDA is a multivariate ordination technique that can be used to analyze many loci and environmental predictors simultaneously. RDA determines how groups of loci covary in response to the multivariate environment, and can detect processes that result in weak, multilocus molecular signatures (Rellstab et al., 2015; Forester et al., 2018).
+
+RDA is a two-step analysis in which genetic and environmental data are analyzed using multivariate linear regression, producing a matrix of fitted values. Then PCA of the fitted values is used to produce canonical axes, which are linear combinations of the predictors. RDA can be used to analyze data derived from both individual and population-based sampling designs.
+
+
+## Assumptions
+
+RDA is a linear model and so assumes a linear dependence between the response variables (genotypes) and the explanatory variables (environmental predictors). Additional detail can be found in Legendre & Legendre (2016). We also recommend Borcard et al. (2011) for details on the implementation and interpretation of RDA using the `vegan` package (Oksanen et al, 2017) in R.
+
+
+## Data & packages
+
+In this vignette, we'll apply RDA to genomic data from 94 North American gray wolves (*Canis lupus*) sampled across Canada and Alaska at 42,587 sincle nucleotide polymorphism (SNP) markers (Schweizer et al., 2016). We are interested in understanding how wolves may be locally adapted to environmental conditions across their North American range
+
+In this case, the genetic data are individual-based, and are input as allele counts (i.e. 0/1/2) for each locus. For population-based data, you can input the genetic data as allele frequencies within demes.
+
+Begin by installing the necessary packages, if you don't already have them:
+
+```{r set global_options, echo=F}
+knitr::opts_knit$set(root.dir = 'D:/18-LWsims/SUBMISSION/REVISION/Forester_Wolf_Rcode/')
+```
+```{r packages global_options, include=TRUE, results="hide", message=FALSE, warning=FALSE}
+# install.packages(c("adegenet","psych","vegan"), dependencies=TRUE)
+
+# Load packages
+# -------------
+library(adegenet) # Used to load genetic data from PLINK format
+library(psych)    # Used to investigate correlations among predictors
+library(vegan)    # Used to run RDA
+```
+
+## Analysis
+
+### Read in and prepare the genetic data for analysis
+
+These data were downloaded from the Schweizer et al. (2016) [Dryad repository](http://datadryad.org/resource/doi:10.5061/dryad.c9b25) and converted from .tped to .raw format.
+
+We will first read in the .raw data using the R package `adegenet` (Jombart 2008), which will produce a `genlight` object. Then we'll extract the matrix of 94 individuals x 42,587 SNPs from this object. 
+
+```{r load}
+dat <- read.PLINK("D:/18-LWsims/SUBMISSION/REVISION/Forester_Wolf_Rcode/wolf.raw", parallel=F)
+dat # View the dat object
+gen <- as.matrix(dat) # Extract the matrix of genotypes
+
+```
+
+RDA requires complete data frames (i.e., no missing data). For this vignette, we'll use a simple approach to imputing missing values: we will impute using the most common genotype at each SNP across all individuals.
+
+```{r NA}
+sum(is.na(gen)) # 122,630 NAs in the matrix (3.06% missing data)
+gen.imp <- apply(gen, 2, function(x) replace(x, is.na(x), as.numeric(names(which.max(table(x))))))
+sum(is.na(gen.imp)) # No NAs
+```
+
+We could also use this imputation approach within ecotypes (rather than across all individuals). Other promising imputation methods for species lacking a reference genome include: using ancestry values from `snmf` in the `LEA` package (Frichot & Francois 2015) and LinkImpute (Money et al. 2015).
+
+
+## Read in and screen the environmental predictors
+
+```{r, load.env}
+env <- read.csv("D:/18-LWsims/SUBMISSION/REVISION/Forester_Wolf_Rcode/EnvironmentalData_6pops_94indiv.csv")
+str(env) # Look at the structure of the data frame
+env$individual <- as.character(env$individual) # Make individual names characters (not factors)
+env$land_cover <- as.factor(env$land_cover)    # Make land cover a factor (not an integer)
+
+# Confirm that genotypes and environmental data are in the same order
+identical(rownames(gen.imp), env[,1]) 
+```
+
+RDA is a regression-based method, and so is subject to problems when using highly correlated predictors. Dormann et al. (2013) provide a thorough discussion of these issues. Generally, the |r| > 0.7 "rule of thumb" is a good guideline for removing correlated predictors. We will also check for multicollinearity using Variance Inflation Factors (VIF).
+
+Variable reduction should be guided by an ecological interpretation of the relevance of possible predictors. Below, we show one option for variable reduction. We use the function `pairs.panels` to visualize correlations among our predictors. Correlation coefficients are in the upper right diagonal, with their size scaled to their |r|. The lower left shows scatter plots, while the diagonal shows histograms of the data. See `?pairs.panels` for more information.
+
+```{r, env.prep1, fig.width=8, fig.height=8}
+pairs.panels(env[,5:16], scale=T)
+```
+
+One option for reducing correlations:
+1. `precip_coldest_quarter` and `ann_precip` are correlated at 0.97; remove one.
+2. If we remove `max_temp_warmest_month` and `min_temp_coldest_month`, we eliminate the remaining strong correlations in a small number of predictors (and still have measures of temperature range and variation included).
+3. Also investigate the distribution of factor levels in `land_cover`.
+
+```{r, env.prep2}
+pred <- subset(env, select=-c(precip_coldest_quarter, max_temp_warmest_month, min_temp_coldest_month))
+
+table(pred$land_cover)
+```
+The distribution of factor levels is highly skewed towards classes 1 & 7, leaving the remaining classes with small numbers of individuals. These characteristics make it unlikely to be a highly informative predictor; let's remove it.
+```{r, env.prep3}
+pred <- subset(pred, select=-c(land_cover))
+```
+Let's look at this reduced set of predictors:
+```{r, env.prep4, fig.width=6, fig.height=6}
+pred <- pred[,5:12]
+colnames(pred) <- c("AMT","MDR","sdT","AP","cvP","NDVI","Elev","Tree")
+pairs.panels(pred, scale=T)
+```
+This looks better. Let's move on and run the RDA.
+
+## Run the RDA
+
+The code to run the RDA is simple. However, as noted previously, we highly recommend Borcard et al. (2011) for  details on the implementation and interpretation of RDA models.
+
+Note: if your predictors include any factors, you'll need to write out the formula in the `rda` call if you want to include a significance test of the constrained axis (shown below). Since we are not using any factors in this analysis, we can use the shorthand formula `gen.imp ~ .`
+
+```{r, rda}
+wolf.rda <- rda(gen.imp ~ ., data=pred, scale=T)
+wolf.rda
+```
+
+First, note that we will have as many constrained ("RDA") axes as we have predictors in the model. All residual variance is then modeled by PCA (the unconstrained "PC" axes). The proportion of the variance explained by the environmental predictors is given under the "Proportion" column for "Constrained". Our predictors explain only 13% of the variance, but this isn't surprising, given that we expect the majority of the SNPs to be neutral.
+
+`vegan` has a simple function for checking Variance Inflation Factors:
+
+```{r, VIF}
+vif.cca(wolf.rda)
+```
+
+All values are below 10, and most are below 5, which indicates that multicollinearity among these predictors shouldn't be a problem for the model. Our inital variable reduction was sufficient to prevent collinearity problems for the model.
+
+Now let's check our RDA model for significance - we can assess both the full model and each constrained axis. See `?anova.cca` for more details and options.
+```{r, RDA_significance_full}
+signif.full <- anova.cca(wolf.rda, parallel=getOption("mc.cores")) # default is permutation=999
+signif.full
+```
+The full model is significant, but that doesn't tell us much. Let's check each constrained axis:
+```{r, RDA_significance_axis}
+signif.axis <- anova.cca(wolf.rda, by="axis", parallel=getOption("mc.cores")) # takes a while!
+signif.axis 
+```
+The first four constrained axes are significant (p < 0.01). Each constrained axis is tested using all previous constrained axes as conditions. See `?anova.cca` for details.
+
+## Plot the RDA
+
+We'll start with simple triplots. Here we'll use `scaling=3` (also known as "symmetrical scaling") for the ordination plots. This scales the SNP and individual scores by the square root of the eigenvalues. See Borcard et al. (2011) or the `vegan` help for more information on scaling in RDA plots.
+
+```{r, simple_plot, fig.width=4, fig.height=4, fig.show='hold'}
+plot(wolf.rda, scaling=3)          # default is axes 1 and 2
+plot(wolf.rda, c(1,3), scaling=3)  # axes 1 and 3
+```
+
+Here, the SNPs are in red (in the center of each plot), and the individuals are the black circles. The blue vectors are the environmental predictors. The relative arrangement of these items in the ordination space reflects their relationship with the ordination axes, which are linear combinations of the predictor variables.
+
+Let's make some more informative plots. We'll color the individual points based on their ecotype, which is stored in the `@pop` slot of the original `dat` object.
+
+```{r, nicer_plot1}
+levels(dat@pop) <- c("Western Forest","Boreal Forest","Arctic","High Arctic","British Columbia","Atlantic Forest")
+colorby <- dat@pop
+bg <- c("#ff7f00","#1f78b4","#ffff33","#a6cee3","#33a02c","#e31a1c") # 6 nice colors for our ecotypes
+```
+This time, we'll set the plots up and add each component in separately:
+```{r, nicer_plot2, fig.width=5, fig.height=5, fig.show='hold'}
+# axes 1 & 2
+plot(wolf.rda, type="n", scaling=3)
+points(wolf.rda, display="species", pch=20, cex=0.7, col="gray32", scaling=3)               # the snps
+points(wolf.rda, display="sites", pch=21, cex=1.3, col="gray32", scaling=3, bg=bg[colorby]) # the wolves
+text(wolf.rda, scaling = 3, display = "bp", col="#0868ac", cex=1)                         # the predictors
+legend("bottomright", legend = levels(colorby), bty = "n", col="gray32", pch = 21, cex=1, pt.bg = bg)
+
+# axes 1 & 3
+plot(wolf.rda, type="n", scaling=3, choices=c(1,3))
+points(wolf.rda, display="species", pch=20, cex=0.7, col="gray32", scaling=3, choices=c(1,3))
+points(wolf.rda, display="sites", pch=21, cex=1.3, col="gray32", scaling=3, bg=bg[colorby], choices=c(1,3))
+text(wolf.rda, scaling = 3, display = "bp", col="#0868ac", cex=1, choices=c(1,3))
+legend("topleft", legend = levels(colorby), bty = "n", col="gray32", pch = 21, cex=1, pt.bg = bg)
+```
+
+Now that the individuals are color coded, we can identify some interesting relationships. Starting with the plot of axes 1 and 2, note that individual genotypes from wet and temperate British Columbia (green) are positively related to high annual precipitation (AP) and low temperature seasonality (sdT). By contrast, Artic and High Arctic individuals are characterized by small mean diurnal temperature range (MDR), low annual mean temperature (AMT), lower levels of tree cover (Tree) and NDVI (a measure of vegetation greenness), and are found at lower elevation. Atlantic Forest and Western Forest individuals load more strongly on RDA axis 3, showing weak and strong precipitation seasonality (cvP) respectively, consistent with continental-scale climate in these regions.
+
+
+## Identify candidate SNPs involved in local adaptation
+
+We'll use the loadings of the SNPs in the ordination space to determine which SNPs are candidates for local adaptation. The SNP loadings are stored as `species` in the RDA object. We'll extract the SNP loadings from the four significant constrained axes:
+
+```{r, loadings}
+load.rda <- summary(wolf.rda)$species[,1:4]   # Species scores for the first four constrained axes
+```
+If we look at histograms of the loadings on each RDA axis, we can see their (relatively normal) distribution. SNPs loading at the center of the distribution are likely neutral, while those loading in the tails are more likely to be under selection.
+```{r, loadings_plot, fig.width=5, fig.height=5}
+par(mfrow=c(2,2))
+hist(load.rda[,1], main="Loadings on RDA1")
+hist(load.rda[,2], main="Loadings on RDA2")
+hist(load.rda[,3], main="Loadings on RDA3") 
+hist(load.rda[,4], main="Loadings on RDA4")
+par(mfrow=c(1,1))
+```
+
+I've written a simple function to identify SNPs that load in the tails of these distributions. We'll start with a 3 standard deviation cutoff. As with all cutoffs, this can be modified to reflect the goals of the analysis and our tolerance for true positives vs. false positives. For example, if you needed to be very conservative and only identify those loci under very strong selection (i.e., minimize false positive rates), you could increase the number of standard deviations to 3.5 or 4. This would also increase the false negative rate. If you were less concerned with false positives, and more concerned with identifying as many potential candidate loci as possible (including those that may be under weaker selection), you might choose a 2.5 standard deviation cutoff.
+
+I define the function here as `outliers`:
+```{r, outliers}
+outliers <- function(x,z){
+  lims <- mean(x) + c(-1, 1) * z * sd(x)     # find loadings +/-z sd from mean loading     
+  x[x < lims[1] | x > lims[2]]               # locus names in these tails
+}
+```
+Now let's apply it to each significant constrained axis:
+```{r, candidates}
+cand1 <- outliers(load.rda[,1],3) # 171
+cand2 <- outliers(load.rda[,2],3) # 270
+cand3 <- outliers(load.rda[,3],3) # 163
+cand4 <- outliers(load.rda[,3],3) # 163
+
+ncand <- length(cand1)+length(cand2)+length(cand3)+length(cand4)
+ncand
+```
+We have 171 candidates on axis 1, 270 on axis 2, and 163 on each of axes 3 and 4, for a total of 767 candidate SNPs.
+
+Next, we'll organize our results by making one data frame with the axis, SNP name, loading, & correlation with each predictor:
+
+```{r, outliers_df1}
+cand1 <- cbind.data.frame(rep(1,times=length(cand1)), names(cand1), unname(cand1))
+cand2 <- cbind.data.frame(rep(2,times=length(cand2)), names(cand2), unname(cand2))
+cand3 <- cbind.data.frame(rep(3,times=length(cand3)), names(cand3), unname(cand3))
+cand4 <- cbind.data.frame(rep(4,times=length(cand4)), names(cand4), unname(cand4))
+
+colnames(cand1) <- colnames(cand2)<- colnames(cand3)<- colnames(cand4) <- c("axis","snp","loading")
+
+cand <- rbind(cand1, cand2, cand3, cand4)
+cand$snp <- as.character(cand$snp)
+```
+
+Let's add in the correlations of each candidate SNP with the eight environmental predictors:
+
+```{r, outliers_df2}
+foo <- matrix(nrow=(ncand), ncol=8)  # 8 columns for 8 predictors
+colnames(foo) <- c("ann_mean_temp","mean_diurnal_range","temp_seasonality","ann_precip","precip_seasonality","ndvi","elev","percent_tree_cover")
+
+for (i in 1:length(cand$snp)) {
+  nam <- cand[i,2]
+  snp.gen <- gen.imp[,nam]
+  foo[i,] <- apply(pred,2,function(x) cor(x,snp.gen))
+}
+
+cand <- cbind.data.frame(cand,foo)  
+head(cand)
+```
+Now we have a data frame of 767 candidate SNPs and their correlation with our 8 environmental predictors.
+
+## Investigate the candidates 
+
+We'll start off by looking for duplicate detections. These are SNPs that are identified as candidates on more than one RDA axis.
+
+```{r, detections}
+length(cand$snp[duplicated(cand$snp)]) # 211 duplicates
+
+foo <- cbind(cand$axis, duplicated(cand$snp)) 
+table(foo[foo[,1]==1,2]) # no duplicates on axis 1
+table(foo[foo[,1]==2,2]) # 48 duplicates on axis 2
+table(foo[foo[,1]==3,2]) # no duplicates on axis 3
+table(foo[foo[,1]==4,2]) # 163 (all detections) duplicates on axis 4
+
+cand <- cand[!duplicated(cand$snp),] # remove duplicate detections
+```
+
+Note that all detections on axis 4 were duplicates with other axes. We've now reduced our candidates to 556 unique SNPs. 
+
+Next, we'll see which of the predictors each candidate SNP is most strongly correlated with:
+
+```{r, correlations}
+for (i in 1:length(cand$snp)) {
+  bar <- cand[i,]
+  cand[i,12] <- names(which.max(abs(bar[4:11]))) # gives the variable
+  cand[i,13] <- max(abs(bar[4:11]))              # gives the correlation
+}
+
+colnames(cand)[12] <- "predictor"
+colnames(cand)[13] <- "correlation"
+
+table(cand$predictor) 
+```
+
+Based on the strongest correlations, most SNPs are associated with our two precipitation variables (annual precipitation and precipitation seasonality), with temperature variables second most important (annual mean temperature and mean diurnal range). The other four variables are much less important.
+
+Note that, in some cases, correlations may be strong for multiple variables (depending on collinearity among predictors). It may be useful in some analyses to consider how candidate SNPs are correlated with multiple predictors. However, for this analysis we will focus on the strongest correlations of each SNP with one predictor.
+
+
+## Plot the SNPs
+
+Let's look at RDA plots again, but this time focus in on the SNPs in the ordination space. We'll color code the SNPs based on the predictor variable that they are most strongly correlated with. There is a lot of code to set this up, which you can mostly ignore.
+```{r, snp.plot1}
+sel <- cand$snp
+env <- cand$predictor
+env[env=="ann_precip"] <- '#1f78b4'
+env[env=="precip_seasonality"] <- '#a6cee3'
+env[env=="mean_diurnal_range"] <- '#6a3d9a'
+env[env=="ann_mean_temp"] <- '#e31a1c'
+env[env=="ndvi"] <- '#33a02c'
+env[env=="elev"] <- '#ffff33'
+env[env=="temp_seasonality"] <- '#fb9a99'
+env[env=="percent_tree_cover"] <- '#b2df8a'
+
+# color by predictor:
+all.snp <- rownames(wolf.rda$CCA$v)
+test <- all.snp
+
+for (i in 1:length(sel)) {
+  foo <- match(sel[i],test)
+  test[foo] <- env[i]
+}
+
+test[grep("chr",test)] <- '#f1eef6'
+empty <- test
+empty[grep("#f1eef6",empty)] <- rgb(0,1,0, alpha=0) # transparent
+empty.outline <- ifelse(empty=="#00FF0000","#00FF0000","gray32")
+```
+
+Now we're ready to plot the SNPs:
+
+```{r, snp.plot2, fig.width=5, fig.height=5, fig.show='hold'}
+# axes 1 & 2
+plot(wolf.rda, type="n", scaling=3, xlim=c(-1,1), ylim=c(-1,1))
+points(wolf.rda, display="species", pch=21, cex=1, col="gray32", bg=test, scaling=3)
+points(wolf.rda, display="species", pch=21, cex=1, col=empty.outline, bg=empty, scaling=3)
+text(wolf.rda, scaling = 3, display = "bp", col="#0868ac", cex=1)
+bg <- c('#1f78b4','#a6cee3','#6a3d9a','#e31a1c','#33a02c','#ffff33','#fb9a99','#b2df8a')
+legend("bottomright", legend = c("AP","cvP","MDR","AMT","NDVI","Elev","sdT","Tree"), bty = "n", col="gray32", pch = 21, cex=1, pt.bg = bg)
+
+# axes 1 & 3
+plot(wolf.rda, type="n", scaling=3, xlim=c(-1,1), ylim=c(-1,1), choices=c(1,3))
+points(wolf.rda, display="species", pch=21, cex=1, col="gray32", bg=test, scaling=3, choices=c(1,3))
+points(wolf.rda, display="species", pch=21, cex=1, col=empty.outline, bg=empty, scaling=3, choices=c(1,3))
+text(wolf.rda, scaling = 3, display = "bp", col="#0868ac", cex=1, choices=c(1,3))
+bg <- c('#1f78b4','#a6cee3','#6a3d9a','#e31a1c','#33a02c','#ffff33','#fb9a99','#b2df8a')
+legend("bottomright", legend = c("AP","cvP","MDR","AMT","NDVI","Elev","sdT","Tree"), bty = "n", col="gray32", pch = 21, cex=1, pt.bg = bg)
+```
+
+We can see some interesting relationships in these plots. For example, SNPs most strongly correlated with AP have strong loadings in the lower left quadrant between RDA axes 1 and 2 along the AP vector, accounting for the majority of these 231 AP-correlated detections. Most candidates highly correlated with AMT and MDR load strongly on axes 1 and 2, respectively. Note how candidate SNPs correlated with precipitation seasonality (cvP) and elevation are located in the center of the plot, and will not be detected as outliers on axes 1 or 2. However, these loci are detected as outliers on axis 3.
+
+Overall, candidate SNPs on axis 1 represent multilocus haplotypes associated with annual precipitation and mean diurnal range; SNPs on axis 2 represent haplotypes associated with annual precipitation and annual mean temperature; and SNPs on axis 3 represent haplotypes associated with precipitation seasonality.
+
+These detections differ from the candidates identified using a univariate GEA test by Schweizer et al. (2016); only 52 were found in common between that test and these RDA results. In contrast to the univariate detections, the majority (67%) of SNPs identified by RDA were most strongly associated with precipitation variables, which are known drivers of morphology and population structure in gray wolves (Geffen et al., 2004; O'Keefe et al., 2013; Schweizer et al., 2016). These findings provide new candidate regions and multilocus haplotypes for understanding local adaptation of gray wolves across their North American range.
+
+
+## Conclusions
+
+In summary, **Redundancy Analysis (RDA)** is a highly effective genotype-environment association method, which can identify unique haplotypes associated with the multivariate environment. In a simulation study, RDA showed a superior combination of low false positive and high true positive rates across weak, moderate, and strong multilocus selection. These results were robust across the levels of population structure, demographic histories, sampling designs, and sample sizes tested (Forester et al. 2018). It is important to note that RDA has not yet been tested in situations with high population structure (see Forester et al. 2018 for a discussion of using RDA in this context).
+
+Overall, **RDA** is an effective means of detecting adaptive processes that result in weak, multilocus molecular signatures, providing a powerful tool for investigating the genetic basis of local adaptation and informing management actions to conserve the evolutionary potential of species of agricultural, forestry, fisheries, and conservation concern.
+
+
+## Contributors
+
+* Brenna R. Forester (Author)
+
+
+## References
+
+Borcard D, Gillet F, Legendre P (2011) [*Numerical Ecology with R*] (http://www.springer.com/us/book/9781441979759). Springer, New York.
+
+Dormann CF, Elith J, Bacher S, et al. (2013) [Collinearity: a review of methods to deal with it and a simulation study evaluating their performance] (http://onlinelibrary.wiley.com/doi/10.1111/j.1600-0587.2012.07348.x/abstract). *Ecography*, 36: 27-46.
+
+Forester BR, Lasky JR, Wagner HH, Urban DL (2018) [Comparing methods for detecting multilocus adaptation with multivariate genotype-environment associations] (https://www.biorxiv.org/content/early/2017/12/17/129460). *Molecular Ecology*.
+
+Frichot E, François O (2015) [LEA: An R package for landscape and ecological association studies] (http://onlinelibrary.wiley.com/doi/10.1111/2041-210X.12382/abstract). *Methods in Ecology and Evolution*, 6: 925-929.
+
+Geffen E, Anderson MJ, Wayne RK (2004) [Climate and habitat barriers to dispersal in the highly mobile grey wolf](http://onlinelibrary.wiley.com/doi/10.1111/j.1365-294X.2004.02244.x/full). *Molecular Ecology*, 13: 2481-2490.
+
+Jombart, T (2008) [adegenet: a R package for the multivariate analysis of genetic markers](https://academic.oup.com/bioinformatics/article/24/11/1403/191127). *Bioinformatics*, 24: 1403-1405.
+
+Legendre P, Legendre L (2012) [*Numerical Ecology*, 3rd edition](https://www.elsevier.com/books/numerical-ecology/legendre/978-0-444-53868-0). Elsevier, Amsterdam.
+
+Money D, Migicovsky Z, Gardner K, Myles S (2017) [LinkImputeR: user-guided genotype calling and imputation for non-model organisms](https://bmcgenomics.biomedcentral.com/articles/10.1186/s12864-017-3873-5). *BMC Genomics*, 18: 1-12.
+
+O'Keefe FR, Meachen J, Fet EV, Brannick A (2013) [Ecological determinants of clinal morphological variation in the cranium of the North American gray wolf](http://www.bioone.org/doi/abs/10.1644/13-MAMM-A-069). *Journal of Mammalogy*, 94: 1223-1236.
+
+Oksanen J, Blanchet FG, Kindt R, et al. (2016) [*vegan: Community Ecology Package*](https://CRAN.R-project.org/package=vegan). R package version 2.3-5.
+
+Rellstab C, Gugerli F, Eckert AJ, Hancock AM, Holderegger R (2015) [A practical guide to environmental association analysis in landscape genomics](http://onlinelibrary.wiley.com/doi/10.1111/mec.13322/abstract). *Molecular Ecology*, 24: 4348-4370.
+
+Schweizer RM, vonHoldt BM, Harrigan R, et al. (2016) [Genetic subdivision and candidate genes under selection in North American grey wolves](http://onlinelibrary.wiley.com/doi/10.1111/mec.13364/full). *Molecular Ecology*, 25: 380-402.
+
+
+## Session Information
+
+```{r, sessioninfo}
+options(width = 100)
+devtools::session_info()
+```

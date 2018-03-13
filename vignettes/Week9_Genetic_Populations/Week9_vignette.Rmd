@@ -24,11 +24,12 @@ The goals of this lab are to:
 - Understand how population structure can be used to interpret biogeographic history.
 
 
-### b) Data set
+### b) Data sets
 
-- Simulated data using the two-island model and admixture model
+All files are distributed as system files with the 'LandGenCourse' package (folder 'extdata').
+
+- Simulated data using the two-island model and admixture model.
 - SNP data from Catchen et al. 2013 Catchen et al. 2013. The population structure and recent colonization history of Oregon threespine stickleback determined using restriction-site associated DNA-sequencing. Molecular Ecology 22:1365-294X. http://dx.doi.org/10.1111/mec.12330
-
 
 ### c) Required R libraries
 
@@ -43,9 +44,16 @@ require(LandGenCourse)
 #require(maps)
 #require(mapplots)
 #require(here)
+```
 
-#source("http://bioconductor.org/biocLite.R")
-#biocLite("LEA")
+The package 'LEA' is available from the 'Bioconductor' repository. Also, package 'fields' was not installed with 'LandGenCourse' automatically due to compatibility issues. 
+
+```{r message=FALSE, warning=TRUE}
+if(!require(fields)) install.packages("fields", repos='http://cran.us.r-project.org')
+if(!require(LEA)) {
+  source("http://bioconductor.org/biocLite.R")
+  biocLite("LEA", ask=FALSE, suppressUpdates=TRUE)
+}
 #require(LEA)
 ```
 
@@ -56,17 +64,15 @@ We simulated data under a classic two-island model, using the coalescent simulat
 We simulated 200 haploid individuals genotyped at 100 loci. The effective mutation rate was 'μ = 0.5'. We sampled 2 islands with 100 individuals in each. The effective migration rate was 'Nm 2' ('N' is the effective size in each of the two island, 'm' is the bidirectional rate of gene flow). 
 
 Our ms command was as follows:
- ms 200 100 -t .5 -I 2 100 100 -ma x 10 10 x > dataNm10.txt 
+ ms 200 100 -t .5 -I 2 100 100 -ma x 2 2 x > dataNm2.txt 
  
 These raw data need to be converted in a format amenable to statistical analyses in R. 
-NOTE: THIS WILL BE TAKEN CARE OF: To get started, either set your working directory to where your data files are (Windows, RStudio), or change your terminal directory to launch R from inside the data files directory.
 
 ### a) Import data
 
 ```{r}
-file <- scan(file = paste0(here::here(), "/data/dataNm2.txt"), what ="character", sep="\n", skip = 2)
-
-#file <- scan(file = "dataNm2.txt", what ="character", sep="\n", skip = 2)
+file <- scan(file = system.file("extdata", "dataNm2.txt", package = "LandGenCourse"),
+             what ="character", sep="\n", skip = 2)
 genotype <- NULL
 for(locus in 1:100){
 	res.locus <- file[4:203]
@@ -128,13 +134,20 @@ In this example, we found that only one individual was not assigned to its islan
 
 **Question 2:** Does PCA provide an accurate description of population genetic structure when the genetic differentiation between the 2 islands is less pronounced? 
 
-To answer this question, re-run the first analytical steps up to PCA for data simulated with Nm = 10 (a higher value of gene flow), which is stored in datafile dataNm10.txt. This was generated with the following ms command:
+To answer this question, re-run the first analytical steps up to PCA for data simulated with Nm = 10 (a higher value of gene flow), which is stored in datafile "dataNm10.txt". This was generated with the following ms command:
 
   ms 200 100 -t .5 -I 2 100 100 -ma x 10 10 x > dataNm10.txt 
+  
+You can import the file as:
+
+```{r}
+file <- scan(file = system.file("extdata", "dataNm10.txt", package = "LandGenCourse"),
+             what ="character", sep="\n", skip = 2)
+```
 
 ## 3. Simulated data: 2-island model with admixture
 
-INSERT FIGURE
+![2-island model](WE9_Fig1.png)
 
 A 2-island model is a relatively simple scenario and unlikely to capture the variation we will see in empirical studies. Will our very basic assignment method based on PCA hold up to more complex scenarios? 
 
@@ -152,8 +165,7 @@ p1 <- sigmoid( 0.5 * coord[,1])
 Our admixed genotypes are built from a 2 island model with low gene flow (Nm=1)
 
 ```{r}
-genotype = read.table(file = paste0(here::here(), "/data/dataNm1.str"))[,-(1:2)]
-#genotype = read.table(file = "dataNm1.str")[,-(1:2)]
+genotype = read.table(file = system.file("extdata", "dataNm1.str", package = "LandGenCourse"))[,-(1:2)]
 admixed.genotype <- matrix(NA, ncol = 100, nrow = 200)
 for (i in 1:100){ for (j in 1:100)
 admixed.genotype[i,j] = sample( c(genotype[i, j],genotype[i+100, j]), 1, prob = c(p1[i], 1 - p1[i]) )}
@@ -193,16 +205,15 @@ summary(lm(pcA$x[,1]~ p1))
 
 The Threespine stickleback (Gasterosteus aculeatus) is a fish that has emerged as a model of rapid and parallel adaptation. Catchen et al. (2013) were interested in how populations colonize freshwater habitats in the Pacific Northwest, USA. These sticklebacks have diversified into three life history forms, one exclusively dwelling in the ocean, another being adapted to freshwater habitats, and one unusual population that can utilize both habitats. It was unclear if this one particular population (Riverbend), from a stream in central Oregon, was introduced due to unintentional human transport, and if this could be an example of rapid adaptation to freshwater from oceanic populations. Single nucleotide polymorphism data were generated using genotyping-by-sequencing, for 9 populations occupying coastal areas and inland streams. 
 
-INSERT FIGURE
+![Map](WE9_Fig2.png)
 
 In this tutorial, we will analyze the genetic data generated by Catchen et al. (2013) using a few exploratory methods to quantify and visualize genetic differentiation among the stickleback populations sampled. By the end of this tutorial, hopefully you will be able to make a convincing argument for the regional origin of the recently-introduced inland stickleback population.
 
 ### a) Import the data:
 
 ```{r}
-data <- read.table(paste0(here::here(), "/data/stickleback_data.txt"), 
+data <- read.table(system.file("extdata", "stickleback_data.txt", package = "LandGenCourse"), 
                    sep="\t", as.is=T, check.names=F)
-#data <- read.table("stickleback_data.txt",sep="\t",as.is=T,check.names=F)
 ```
 
 Create a list of population IDs:
@@ -288,9 +299,8 @@ The number of clusters is hard to determine, but four seems to be important and 
 
 ```{r}
 K=4
-snmf = LEA::snmf(paste0(here::here(), "/data/stickleback.geno"), 
+snmf = LEA::snmf(system.file("extdata", "stickleback.geno", package = "LandGenCourse"), 
                  K = K, alpha = 100, project = "new")
-#snmf = LEA::snmf("stickleback.geno", K = K, alpha = 100, project = "new")
 ```
 
 ### d) Plot ancestry proportions
@@ -318,10 +328,8 @@ for (i in 1:length(pops)){
 Import geographical coordinates for the populations: 
 
 ```{r}
-
-sites <- read.csv(paste0(here::here(), "/data/stickleback_coordinates.csv"),
-                  as.is=T, check.names=F, h=T)
-#sites <- read.csv("stickleback_coordinates.csv", as.is=T, check.names=F, h=T)
+sites <- read.csv(system.file("extdata", "stickleback_coordinates.csv", 
+                              package = "LandGenCourse"), as.is=T, check.names=F, h=T)
 ```
 
 Calculate population average ancestry proportions and create an array with population coordinates:
