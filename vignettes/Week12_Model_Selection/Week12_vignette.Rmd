@@ -1,0 +1,336 @@
+---
+title: "Week 12: Model Selection"
+author: "Caren Goldberg"
+date: "`r Sys.Date()`"
+show_toc: true
+output:
+  knitr:::html_vignette:
+    toc: yes
+    fig_width: 4 
+    fig_height: 3.5
+vignette: >
+  %\VignetteIndexEntry{Week 12: Model Selection}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+## 1. Overview of Worked Example
+
+### a) Goals and Background
+
+**Goals**: The goal of this worked example is for you to become familiar with creating and analyzing landscape genetic hypotheses using maximum likelihood population effects (MLPE; Van Strien et al. 2012) and information theory. 
+
+We will re-analyze a dataset from Goldberg and Waits 2010 using a maximum likelihood population effect model(MLPE). 
+
+### b) Data set
+
+In previous labs, you have created genetic distance matrices, so here we are going to start with those data already complete, as are the landscape data. For MLPE, two vectors representing the nodes at the ends of each link must be created. These are already included in the data set (`pop1` and `pop2`). 
+
+Each row in the file 'CSF_network.csv' represents a link between two pairs of sampling locations. The columns contain the following variables:
+
+- **Id**: Link ID.
+- **Name**: Link name (combines the two site names).
+- **logDc.km**: Genetic distance per geographic distance, log transformed (response variable).
+- **LENGTH**: Euclidean distance.
+- **slope**: Average slope along the link.
+- **solarinso**: Average solar insolation along the link.
+- **soils**: Dominant soil type along the link (categorical).
+- **ag**: Proportion of agriculture along the link.
+- **grass**: Proportion of grassland along the link.
+- **shrub**: Proportion of shrubland along the link.
+- **hi**: Proportion of high density forest along the link. 
+- **lo**: Proportion of low density forest along the link.
+- **dev**: Proportion of development (buildings) along the link.
+- **forest**: Proportion of forest (the sum of hi and lo) along the link.
+- **pop1**: 'From' population.
+- **pop2**: 'To' population.
+
+### c) Required R libraries
+
+All required packages should have been installed already when you installed 'LandGenCourse'.
+
+```{r packages global_options, include=TRUE, results="hide", message=FALSE, warning=FALSE}
+library(LandGenCourse)
+#require(lme4)
+#require(usdm)
+```
+
+### d) Import data
+
+First, read in the dataset. I’ve named it CSF (Columbia spotted frog) to differentiate it from Melanie’s dataset you have used in previous labs. 
+
+```{r}
+CSFdata <- read.csv(system.file("extdata", "CSF_network.csv", 
+                                        package = "LandGenCourse"))
+View(CSFdata) 
+```
+
+Take a look at the column names and make sure you and R agree on what everything is called, and on the data types (e.g., factor vs. character).
+
+```{r}
+str(CSFdata)
+```
+
+- `Name` and `soils` are interpreted as factors,
+- `Id`, `pop1` and `pop2` are vectors of integers, and
+- everything else are numeric vectors, i.e., quantitative variables. 
+
+The response Y in our MLPE models will be `logDc.km`, the genetic distance per geographic distance, log transformed to meet normality assumptions. 
+
+For this exercise, you’ll test 5 alternative hypotheses. At the end, you’ll be invited to create your own hypotheses from these variables and test support for them.
+
+## 2. Fitting candidate models
+
+### a) Alternative hypotheses
+
+Rather than fitting all possible models, you should start by defining a set of candidate models based on alternative biological hypotheses that each seem plausible based on the literature. Here, your a priori set of hypotheses (as in the Week 12 Conceptual Exercise) is as follows:
+
+1.	**Full model**: solarinso, forest, ag, shrub, dev
+2.	**Landcover model**: ag, shrub, forest, and dev
+3.	**Human footprint model**: ag, dev
+4.	**Energy conservation model**: slope, shrub, dev
+5.	**Historical model**: soils, slope, solarinso
+
+### b) Prepare for model fitting
+
+Create the Zl and ZZ matrices:
+
+```{r}
+Zl <- lapply(c("pop1","pop2"), function(nm) Matrix:::fac2sparse(CSFdata[[nm]],
+                               "d", drop=FALSE))
+ZZ <- Reduce("+", Zl[-1], Zl[[1]])
+```
+
+Fit a lmer model to the data. 
+
+```{r}
+mod1 <- lme4::lFormula(logDc.km ~ solarinso + forest + ag + shrub + dev + (1|pop1), 
+                 data = CSFdata, REML = TRUE)
+```
+
+At this point an error message appears: "Warning message: Some predictor variables are on very different scales: consider rescaling". 
+
+Which variable is causing this problem? To check, get R to show you the first few rows of the dataset:
+
+```{r}
+head(CSFdata)
+```
+
+One of these variables is a lot larger than the others, but has a small range. This often happens with variables such as easting and can cause issues for model fit. The common solution is to z-transform (standardize) the data, which is conveniently done in R using the `scale` function:
+
+```{r}
+solarinsoz <- scale(CSFdata$solarinso)
+```
+
+We then can attach these data back to our dataframe and check to make sure this worked:
+
+```{r}
+CSFdata <- cbind(CSFdata, solarinsoz)
+names(CSFdata)
+```
+
+If `solarinsoz` is there, you’re good.
+
+While we’re at it, let’s make sure that these variables don’t have issues with multicollinearity.
+
+Make a dataframe of just the variables to test (note, you can’t use factors here):
+
+```{r}
+CSF.df <- with(CSFdata, data.frame(solarinsoz, forest, dev, shrub, ag))
+usdm::vif(CSF.df)
+```
+
+Numbers less than 10, or 3, or 4, depending on who you ask, are considered to not be collinear enough to affect model outcomes. So we’re good to go here. Note, though, what would happen if we added grass to this?
+
+```{r}
+usdm::vif(cbind(CSF.df, grass=CSFdata$grass))
+```
+
+### c) Fit all five models
+
+Now we have to remake the modeling objects with our new and improved data frame, but referring to our z-transformed data (thanks to Martin Van Strien and Helene Wagner for the base model code):
+
+```{r}
+Zl <- lapply(c("pop1","pop2"), function(nm) Matrix:::fac2sparse(CSFdata[[nm]],
+                               "d", drop=FALSE))
+ZZ <- Reduce("+", Zl[-1], Zl[[1]])
+```
+
+Fit a lmer model to the data:
+
+```{r}
+mod1 <- lme4::lFormula(logDc.km ~ solarinsoz + forest + ag + shrub + dev + (1|pop1), 
+                 data = CSFdata, REML = TRUE)
+dfun <- do.call(lme4::mkLmerDevfun, mod1)
+opt <- lme4::optimizeLmer(dfun)
+mod_1 <- lme4::mkMerMod(environment(dfun), opt, mod1$reTrms,fr = mod1$fr)
+```
+
+In the fitted model replace Zt slot:
+
+```{r}
+mod1$reTrms$Zt <- ZZ
+```
+
+Refit the model:
+
+```{r}
+dfun <- do.call(lme4::mkLmerDevfun, mod1)
+opt <- lme4::optimizeLmer(dfun)
+mod_1z <- lme4::mkMerMod(environment(dfun), opt, mod1$reTrms,fr = mod1$fr)
+summary(mod_1z)
+```
+
+This is the fullest model in our dataset (although our models are not completely nested), so let’s take a look at the residuals:
+
+```{r}
+plot(mod_1z) 
+```
+
+Residuals are centered around zero and don’t show large groupings or patterns, although there is some increase in variation at larger numbers (so the model is having a more difficult time predicting larger genetic distances per km). 
+
+There are many more checks that can be done at this point (referenced in the lecture), but for now we’re going to leave model fit at this and fit the other models.
+
+Fitting model 2:
+
+```{r}
+mod2 <- lme4::lFormula(logDc.km ~ forest + ag + shrub + dev + (1|pop1), 
+                       data = CSFdata, REML = TRUE)
+dfun <- do.call(lme4::mkLmerDevfun, mod2)
+opt <- lme4::optimizeLmer(dfun)
+mod_2 <- lme4::mkMerMod(environment(dfun), opt, mod2$reTrms,fr = mod2$fr)
+mod2$reTrms$Zt <- ZZ
+
+# Refit the model
+dfun <- do.call(lme4::mkLmerDevfun, mod2)
+opt <- lme4::optimizeLmer(dfun)
+mod_2z <- lme4::mkMerMod(environment(dfun), opt, mod2$reTrms,fr = mod2$fr)
+```
+
+Fitting model 3:
+
+```{r}
+mod3 <- lme4::lFormula(logDc.km ~ ag + dev + (1|pop1), 
+                       data = CSFdata, REML = TRUE)
+dfun <- do.call(lme4::mkLmerDevfun, mod3)
+opt <- lme4::optimizeLmer(dfun)
+mod_3 <- lme4::mkMerMod(environment(dfun), opt, mod3$reTrms,fr = mod3$fr)
+mod3$reTrms$Zt <- ZZ
+
+# Refit the model
+dfun <- do.call(lme4::mkLmerDevfun, mod3)
+opt <- lme4::optimizeLmer(dfun)
+mod_3z <- lme4::mkMerMod(environment(dfun), opt, mod3$reTrms,fr = mod3$fr)
+```
+
+Fitting model 4:
+
+```{r}
+mod4 <- lme4::lFormula(logDc.km ~ slope + shrub + dev + (1|pop1), 
+                       data = CSFdata, REML = TRUE)
+dfun <- do.call(lme4::mkLmerDevfun, mod4)
+opt <- lme4::optimizeLmer(dfun)
+mod_4 <- lme4::mkMerMod(environment(dfun), opt, mod4$reTrms,fr = mod4$fr)
+mod4$reTrms$Zt <- ZZ
+
+# Refit the model
+dfun <- do.call(lme4::mkLmerDevfun, mod4)
+opt <- lme4::optimizeLmer(dfun)
+mod_4z <- lme4::mkMerMod(environment(dfun), opt, mod4$reTrms,fr = mod4$fr)
+```
+
+Fitting model 5:
+
+```{r}
+mod5 <- lme4::lFormula(logDc.km ~ soils + slope + solarinsoz + (1|pop1), 
+                       data = CSFdata, REML = TRUE)
+dfun <- do.call(lme4::mkLmerDevfun, mod5)
+opt <- lme4::optimizeLmer(dfun)
+mod_5 <- lme4::mkMerMod(environment(dfun), opt, mod5$reTrms,fr = mod5$fr)
+mod5$reTrms$Zt <- ZZ
+
+# Refit the model
+dfun <- do.call(lme4::mkLmerDevfun, mod5)
+opt <- lme4::optimizeLmer(dfun)
+mod_5z <- lme4::mkMerMod(environment(dfun), opt, mod5$reTrms,fr = mod5$fr)
+```
+
+### d) Compare model fit
+
+```{r}
+CSF.IC <- cbind(Model = c(1:5), 
+                AIC = c(AIC(mod_1z), AIC(mod_2z), AIC(mod_3z), 
+                        AIC(mod_4z), AIC(mod_5z)), 
+                BIC = c(BIC(mod_1z), BIC(mod_2z), BIC(mod_3z), 
+                        BIC(mod_4z), BIC(mod_5z)))
+CSF.IC
+```
+
+We’ve got some results, great!
+
+Now let’s work with these a bit. First, because we don’t have an infinite number of samples, we’ll convert AIC to AICc.
+
+First, find the k parameters used in the model and add them to the table.
+
+```{r}
+CSF.IC <- cbind(CSF.IC, 
+                k = c(attr(logLik(mod_1z), "df"), attr(logLik(mod_2z), "df"), 
+                      attr(logLik(mod_3z), "df"), attr(logLik(mod_4z), "df"), 
+                      attr(logLik(mod_5z), "df")))
+CSF.IC
+```
+
+Now, calculate AICc and add it to the dataframe:
+
+```{r}
+CSF.IC<- as.data.frame(CSF.IC)
+AICc <- CSF.IC$AIC + 2*CSF.IC$k*(CSF.IC$k+1)/(48-CSF.IC$k-1)
+CSF.IC <- cbind(CSF.IC, AICc = AICc)
+CSF.IC
+```
+
+### e) Calculate evidence weights
+
+Next we calculate evidence weights for each model based on AICc and BIC. 
+
+Calculate model weights for AICc:
+
+```{r}
+AICcmin <- min(CSF.IC$AICc)
+RL <- exp(-0.5*(CSF.IC$AICc - AICcmin))
+sumRL <- sum(RL)
+AICew <- RL/sumRL
+CSF.IC <- cbind(CSF.IC, AICew)
+```
+
+Calculate model weights for BIC:
+
+```{r}
+BICmin <- min(CSF.IC$BIC)
+RL.B <- exp(-0.5*(CSF.IC$BIC - BICmin))
+sumRL.B <- sum(RL.B)
+BICew <- RL.B/sumRL.B
+CSF.IC <- cbind(CSF.IC, BICew)
+round(CSF.IC,3)
+```
+
+**Questions**:
+
+1.	Why would adding in the last land cover cause a high amount of collinearity? Consider how these data were calculated.
+2.	What did using AICc (rather than AIC) do to inference from these results?
+3.	How does k relate to the number of parameters in each model?
+4.	Find the best model and type its name into R to look at the beta values for the fixed effects. What does this tell you about the influence of land covers on gene flow of Columbia spotted frogs?
+
+## 3. Your turn to test additional hypotheses!
+
+Create your own (small) set of hypotheses to rank for evidence using the dataset provided. Modify the code above to complete the following steps: 
+
+1.  Define your hypotheses.
+2.  Calculate the VIF table for full model.
+3.  Make a residual plot for full model.
+4.  Create table of AICc and BIC weights.
+
+What can you infer from your analysis about what influences gene flow of this species?
+
+```{r message=FALSE, warning=TRUE, include=FALSE}
+LandGenCourse::detachAllPackages()
+```
