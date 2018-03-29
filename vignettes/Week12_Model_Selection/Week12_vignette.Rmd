@@ -17,9 +17,9 @@ vignette: >
 
 ### a) Goals and Background
 
-**Goals**: The goal of this worked example is for you to become familiar with creating and analyzing landscape genetic hypotheses using maximum likelihood population effects (MLPE; Van Strien et al. 2012) and information theory. 
+**Goals**: The goal of this worked example is for you to become familiar with creating and analyzing landscape genetic hypotheses using maximum likelihood population effects (MLPE; Van Strien et al. 2012) and information theory. WIth this approach, we focus on evaluating evidence for the influence of landscape on link-based metrics (i.e. genetic distance). Incorporating node-based effects (i.e. pond size, etc.) will be covered in the gravity modeling lab. 
 
-We will re-analyze a dataset from Goldberg and Waits 2010 using a maximum likelihood population effect model(MLPE). 
+We will re-analyze a dataset from Goldberg and Waits 2010 using a maximum likelihood population effect model (MLPE). 
 
 ### b) Data set
 
@@ -56,7 +56,7 @@ library(LandGenCourse)
 
 ### d) Import data
 
-First, read in the dataset. I’ve named it CSF (Columbia spotted frog) to differentiate it from Melanie’s dataset you have used in previous labs. 
+First, read in the dataset. It is named CSF (Columbia spotted frog) to differentiate it from the RALU dataset you have used in previous labs (same species, very different landscapes). 
 
 ```{r}
 CSFdata <- read.csv(system.file("extdata", "CSF_network.csv", 
@@ -72,17 +72,17 @@ str(CSFdata)
 
 - `Name` and `soils` are interpreted as factors,
 - `Id`, `pop1` and `pop2` are vectors of integers, and
-- everything else are numeric vectors, i.e., quantitative variables. 
+- everything else is a numeric vector, i.e., continuous variable. 
 
 The response Y in our MLPE models will be `logDc.km`, the genetic distance per geographic distance, log transformed to meet normality assumptions. 
 
-For this exercise, you’ll test 5 alternative hypotheses. At the end, you’ll be invited to create your own hypotheses from these variables and test support for them.
+For this exercise, you will test 5 alternative hypotheses. At the end, you will be invited to create your own hypotheses from these variables and test support for them.
 
 ## 2. Fitting candidate models
 
 ### a) Alternative hypotheses
 
-Rather than fitting all possible models, you should start by defining a set of candidate models based on alternative biological hypotheses that each seem plausible based on the literature. Here, your a priori set of hypotheses (as in the Week 12 Conceptual Exercise) is as follows:
+In information theory, we evaluate evidence for a candidate set of hypotheses that we develop from the literature and theory. Although it is mathematically possible (and often practiced) to fit all possible combinations of input variables, that approach is not consistant with the methodology (see Burnham and Anderson 2002 Chapter 8, the reading for this unit, for more detail). Here, your "a priori"" set of hypotheses (as in the Week 12 Conceptual Exercise) is as follows:
 
 1.	**Full model**: solarinso, forest, ag, shrub, dev
 2.	**Landcover model**: ag, shrub, forest, and dev
@@ -91,6 +91,7 @@ Rather than fitting all possible models, you should start by defining a set of c
 5.	**Historical model**: soils, slope, solarinso
 
 ### b) Prepare for model fitting
+Because link data are not independant (i.e. the genetic diversity at node 1 influences both the node1/node2 genetic distance and that from node1/node3, etc.), we need to develop a set of random effects to account for this dependancy, so that we seperate the pattern due to this covariance from the signal of landscape influence on genetic distance. We start by creating matrices from the pop1 and pop2 variables:
 
 Create the Zl and ZZ matrices:
 
@@ -100,7 +101,7 @@ Zl <- lapply(c("pop1","pop2"), function(nm) Matrix:::fac2sparse(CSFdata[[nm]],
 ZZ <- Reduce("+", Zl[-1], Zl[[1]])
 ```
 
-Fit a lmer model to the data. 
+Now we can fit an lmer model to the data. 
 
 ```{r}
 mod1 <- lme4::lFormula(logDc.km ~ solarinso + forest + ag + shrub + dev + (1|pop1), 
@@ -128,18 +129,20 @@ CSFdata <- cbind(CSFdata, solarinsoz)
 names(CSFdata)
 ```
 
-If `solarinsoz` is there, you’re good.
+If `solarinsoz` is there, you are good.
 
-While we’re at it, let’s make sure that these variables don’t have issues with multicollinearity.
+While we are at it, we will make sure that these variables do not have issues with multicollinearity.
 
-Make a dataframe of just the variables to test (note, you can’t use factors here):
+Make a dataframe of just the variables to test (note, you cannot use factors here):
 
 ```{r}
 CSF.df <- with(CSFdata, data.frame(solarinsoz, forest, dev, shrub, ag))
 usdm::vif(CSF.df)
 ```
 
-Numbers less than 10, or 3, or 4, depending on who you ask, are considered to not be collinear enough to affect model outcomes. So we’re good to go here. Note, though, what would happen if we added grass to this?
+If you get an error that there is no package called 'usdm', use install.packages("usdm")
+
+Numbers less than 10, or 3, or 4, depending on who you ask, are considered to not be collinear enough to affect model outcomes. So we are good to go here. What would happen if we added grass to this?
 
 ```{r}
 usdm::vif(cbind(CSF.df, grass=CSFdata$grass))
@@ -155,46 +158,43 @@ Zl <- lapply(c("pop1","pop2"), function(nm) Matrix:::fac2sparse(CSFdata[[nm]],
 ZZ <- Reduce("+", Zl[-1], Zl[[1]])
 ```
 
-Fit a lmer model to the data:
+Fit an lmer model to the data:
 
 ```{r}
-mod1 <- lme4::lFormula(logDc.km ~ solarinsoz + forest + ag + shrub + dev + (1|pop1), 
+mod_1 <- lme4::lFormula(logDc.km ~ solarinsoz + forest + ag + shrub + dev + (1|pop1), 
                  data = CSFdata, REML = TRUE)
-dfun <- do.call(lme4::mkLmerDevfun, mod1)
-opt <- lme4::optimizeLmer(dfun)
-mod_1 <- lme4::mkMerMod(environment(dfun), opt, mod1$reTrms,fr = mod1$fr)
 ```
 
 In the fitted model replace Zt slot:
 
 ```{r}
-mod1$reTrms$Zt <- ZZ
+mod_1$reTrms$Zt <- ZZ
 ```
 
 Refit the model:
 
 ```{r}
-dfun <- do.call(lme4::mkLmerDevfun, mod1)
+dfun <- do.call(lme4::mkLmerDevfun, mod_1)
 opt <- lme4::optimizeLmer(dfun)
-mod_1z <- lme4::mkMerMod(environment(dfun), opt, mod1$reTrms,fr = mod1$fr)
-summary(mod_1z)
+mod1 <- lme4::mkMerMod(environment(dfun), opt, mod_1$reTrms,fr = mod_1$fr)
+summary(mod1)
 ```
 
-This is the fullest model in our dataset (although our models are not completely nested), so let’s take a look at the residuals:
+This is the fullest model in our dataset (although our models are not completely nested), so we will take a look at the residuals:
 
 ```{r}
-plot(mod_1z) 
+plot(mod1) 
 ```
 
-Residuals are centered around zero and don’t show large groupings or patterns, although there is some increase in variation at larger numbers (so the model is having a more difficult time predicting larger genetic distances per km). 
+Residuals are centered around zero and do not show large groupings or patterns, although there is some increase in variation at larger numbers (so the model is having a more difficult time predicting larger genetic distances per km). 
 
-There are many more checks that can be done at this point (referenced in the lecture), but for now we’re going to leave model fit at this and fit the other models.
+There are many more checks that can be done at this point (referenced in the lecture), but for now we are going to leave evaluating model fit at this and fit the other models.
 
-Fitting model 2:
+Now we will make a function (called MPLE) to fit the rest of our models, so that we are not typing the same code over and over (which causes errors and long code that is difficult to navigate):
+
 
 ```{r}
-mod2 <- lme4::lFormula(logDc.km ~ forest + ag + shrub + dev + (1|pop1), 
-                       data = CSFdata, REML = TRUE)
+MLPE <- function(variables, data) {mod2 <- lme4::lFormula(variables, data = data, REML = TRUE)
 dfun <- do.call(lme4::mkLmerDevfun, mod2)
 opt <- lme4::optimizeLmer(dfun)
 mod_2 <- lme4::mkMerMod(environment(dfun), opt, mod2$reTrms,fr = mod2$fr)
@@ -203,79 +203,44 @@ mod2$reTrms$Zt <- ZZ
 # Refit the model
 dfun <- do.call(lme4::mkLmerDevfun, mod2)
 opt <- lme4::optimizeLmer(dfun)
-mod_2z <- lme4::mkMerMod(environment(dfun), opt, mod2$reTrms,fr = mod2$fr)
+modelout <- lme4::mkMerMod(environment(dfun), opt, mod2$reTrms,fr = mod2$fr)
+return(modelout)
+}
 ```
 
-Fitting model 3:
+To use this function, we define variables (the model as we want it to run) and data (the object that contains our data)
 
 ```{r}
-mod3 <- lme4::lFormula(logDc.km ~ ag + dev + (1|pop1), 
-                       data = CSFdata, REML = TRUE)
-dfun <- do.call(lme4::mkLmerDevfun, mod3)
-opt <- lme4::optimizeLmer(dfun)
-mod_3 <- lme4::mkMerMod(environment(dfun), opt, mod3$reTrms,fr = mod3$fr)
-mod3$reTrms$Zt <- ZZ
-
-# Refit the model
-dfun <- do.call(lme4::mkLmerDevfun, mod3)
-opt <- lme4::optimizeLmer(dfun)
-mod_3z <- lme4::mkMerMod(environment(dfun), opt, mod3$reTrms,fr = mod3$fr)
+mod2 <- MLPE(logDc.km ~ forest + ag + shrub + dev + (1|pop1), CSFdata)
+mod3 <- MLPE(logDc.km ~ ag + dev + (1|pop1), CSFdata)
+mod4 <- MLPE(logDc.km ~ slope + shrub + dev + (1|pop1), CSFdata)
+mod5 <- MLPE(logDc.km ~ soils + slope + solarinsoz + (1|pop1), CSFdata)
 ```
 
-Fitting model 4:
+### d) Compare evidence for models
+Note: package MuMIn will do this for you, but for this exercise it is useful to see all the pieces of what goes into your evaluation. 
 
-```{r}
-mod4 <- lme4::lFormula(logDc.km ~ slope + shrub + dev + (1|pop1), 
-                       data = CSFdata, REML = TRUE)
-dfun <- do.call(lme4::mkLmerDevfun, mod4)
-opt <- lme4::optimizeLmer(dfun)
-mod_4 <- lme4::mkMerMod(environment(dfun), opt, mod4$reTrms,fr = mod4$fr)
-mod4$reTrms$Zt <- ZZ
-
-# Refit the model
-dfun <- do.call(lme4::mkLmerDevfun, mod4)
-opt <- lme4::optimizeLmer(dfun)
-mod_4z <- lme4::mkMerMod(environment(dfun), opt, mod4$reTrms,fr = mod4$fr)
-```
-
-Fitting model 5:
-
-```{r}
-mod5 <- lme4::lFormula(logDc.km ~ soils + slope + solarinsoz + (1|pop1), 
-                       data = CSFdata, REML = TRUE)
-dfun <- do.call(lme4::mkLmerDevfun, mod5)
-opt <- lme4::optimizeLmer(dfun)
-mod_5 <- lme4::mkMerMod(environment(dfun), opt, mod5$reTrms,fr = mod5$fr)
-mod5$reTrms$Zt <- ZZ
-
-# Refit the model
-dfun <- do.call(lme4::mkLmerDevfun, mod5)
-opt <- lme4::optimizeLmer(dfun)
-mod_5z <- lme4::mkMerMod(environment(dfun), opt, mod5$reTrms,fr = mod5$fr)
-```
-
-### d) Compare model fit
-
+In information theory, we use information criteria (AIC, BIC) to evaluate the relative distance of our hypothesis from truth. For more information, see Burnham and Anderson (2002).
 ```{r}
 CSF.IC <- cbind(Model = c(1:5), 
-                AIC = c(AIC(mod_1z), AIC(mod_2z), AIC(mod_3z), 
-                        AIC(mod_4z), AIC(mod_5z)), 
-                BIC = c(BIC(mod_1z), BIC(mod_2z), BIC(mod_3z), 
-                        BIC(mod_4z), BIC(mod_5z)))
+                AIC = c(AIC(mod1), AIC(mod2), AIC(mod3), 
+                        AIC(mod4), AIC(mod5)), 
+                BIC = c(BIC(mod1), BIC(mod2), BIC(mod3), 
+                        BIC(mod4), BIC(mod5)))
 CSF.IC
 ```
 
-We’ve got some results, great!
+We now have some results, great!
 
-Now let’s work with these a bit. First, because we don’t have an infinite number of samples, we’ll convert AIC to AICc.
+Now we will work with these a bit. First, because we do not have an infinite number of samples, we will convert AIC to AICc.
 
 First, find the k parameters used in the model and add them to the table.
 
 ```{r}
 CSF.IC <- cbind(CSF.IC, 
-                k = c(attr(logLik(mod_1z), "df"), attr(logLik(mod_2z), "df"), 
-                      attr(logLik(mod_3z), "df"), attr(logLik(mod_4z), "df"), 
-                      attr(logLik(mod_5z), "df")))
+                k = c(attr(logLik(mod1), "df"), attr(logLik(mod2), "df"), 
+                      attr(logLik(mod3), "df"), attr(logLik(mod4), "df"), 
+                      attr(logLik(mod5), "df")))
 CSF.IC
 ```
 
@@ -290,7 +255,7 @@ CSF.IC
 
 ### e) Calculate evidence weights
 
-Next we calculate evidence weights for each model based on AICc and BIC. 
+Next we calculate evidence weights for each model based on AICc and BIC. These can be interpreted as the probability that the model is the closest to truth in the candidate model set. 
 
 Calculate model weights for AICc:
 
@@ -313,12 +278,37 @@ CSF.IC <- cbind(CSF.IC, BICew)
 round(CSF.IC,3)
 ```
 
+In the multi-model inference approach, we can look across all the models in the dataset and their evidence weights to better understand the system. Here we see that models 1 and 5 have very little evidence of being close to the truth, that model 4 has just a little more, and that models 2 and 3 can be seen as competing for which one is closest to truth, at least if you're looking at AIC. BIC imposes a larger penalty for additional parameters, so it has a larger distinction between these. Let's review what these models are:
+
+1.	**Full model**: solarinso, forest, ag, shrub, dev
+2.	**Landcover model**: ag, shrub, forest, and dev
+3.	**Human footprint model**: ag, dev
+4.	**Energy conservation model**: slope, shrub, dev
+5.	**Historical model**: soils, slope, solarinso
+
+According to Row et al. (2017), we can use the confidence interval from the variables in the models to identify those that are contributing to landscape resistance. Looking at models 2 and 3, we have some evidence that shrub and forest cover matter, but it's not as strong as the evidence for ag and development. Let's look at the parameter estimates to understand more.
+
+```{r}
+summary(mod2)
+```
+
+Now we'll estimate the 95% confidence interval for these estimates:
+
+```{r}
+confint(mod2, level = 0.95, method = "Wald")
+```
+
+The estimates that overlap 0 do not have as much evidence of being important to gene flow, based on simulations in Row et al. (2017). So in this case, there is only strong evidence that agriculture influences the rate of gene flow. Note that because the metric is genetic distance, negative values indicate more gene flow.
+
+
 **Questions**:
 
 1.	Why would adding in the last land cover cause a high amount of collinearity? Consider how these data were calculated.
 2.	What did using AICc (rather than AIC) do to inference from these results?
 3.	How does k relate to the number of parameters in each model?
-4.	Find the best model and type its name into R to look at the beta values for the fixed effects. What does this tell you about the influence of land covers on gene flow of Columbia spotted frogs?
+4.	What evidence is there that shrub and forest matter to gene flow from these analyses? Would you include them in a conclusion about landscape resistance in this system?
+5.  What evidence is there that development influences gene flow from these analyses? Would you include it in a conclusion about landscape resistance in this system?
+
 
 ## 3. Your turn to test additional hypotheses!
 
@@ -328,6 +318,7 @@ Create your own (small) set of hypotheses to rank for evidence using the dataset
 2.  Calculate the VIF table for full model.
 3.  Make a residual plot for full model.
 4.  Create table of AICc and BIC weights.
+5.  Create confidence intervals from models with high evidence weights.
 
 What can you infer from your analysis about what influences gene flow of this species?
 
