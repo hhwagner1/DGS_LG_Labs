@@ -1,0 +1,276 @@
+---
+title: "DGS Plant Lab"
+output: html_notebook
+---
+In this lab you will use the gstudio package to analyse parent-offspring data for the wildflower *Pulsatilla vulgaris*. You will learn how to conduct landscape genetic analyses on pollen pools, conduct paternity analysis to quantify contemporary pollen flow, and relate realized pollen flow events to landscape variables.
+
+The data are from the paper "DiLeo et al. (In Press) Contempoaray pollen flow as a multiscale process: evidence from the insect-pollinated herb Pulsatilla vulgaris. Journal of Ecology". The data include genotypes from seeds, mothers, and all potential fathers from 7 focal populations. We will recreate one analysis from the paper, looking at the ecological factors that best explain pollen immigration rates of the 7 populations. 
+
+There are three data files associated with this lab: "pulsatilla_genotypes.csv", which contains the genotypes of offspring, mothers, and potential fathers from seven populations,"pulsatilla_momVariables.csv", which contains ecological variables collect for each mother, and "pulsatilla_population.csv", which contains landscape and popualtion size information for each of the seven populations. 
+
+To start load the requied libraries.
+```{r}
+#library(devtools)
+#install_github("dyerlab/popgraph")
+#install_github("dyerlab/gstudio")
+library(gstudio)
+library(vegan)
+library(ggplot2)
+library(purrr)
+library(MuMIn)
+library(lme4)
+```
+## Import Genotypes
+gstudio makes it very easy to import genotype data. Typically, we store our genotype data in a spreadsheet with one line per individual and two columns per locus. Using the read_population() function, we tell gstudio which columns contain our loci. Type="column" indicates that our raw text file stores genotypes in two columns per locus.
+```{r}
+dat <- read_population("pulsatilla_genotypes.csv", type = "column", locus.columns = 6:19)
+dat$ID <- as.factor(dat$ID)
+```
+
+Let's take a look at the data:
+```{r}
+head(dat)
+```
+There are 12 columns:
+
+- **ID**: A unique identifier for every adult
+- **OffID**: Zero if the sample is an adult and >0 if the sample is an offspring
+- **Population**: The population of origin
+- **2 coordinate columns, X & Y**: The geographic coordinates of the sample
+- **7 locus columns**: For each locus, the genotype is stored in a single column with alleles separated by ":"
+
+Let's look at the data for mother with the ID=3083 and her associated offspring
+```{r}
+dat[dat$ID == "3083",]
+
+```
+The first row is the mother and the subsequent rows are her offspring with OffIDs 1-8.
+
+## Pollen pool genetic structure
+Now, use the minus_mom() function to remove the mother's contribution to the offspring genotypes. You will be left with just the paternal contribution. The allele frequcies of all paternal contributions associated with a single mother is called a "pollen pool"
+```{r}
+pollen <- minus_mom(dat, MomCol = "ID", OffCol = "OffID")
+pollen[pollen$ID == "3083",]
+```
+Now the pollen pool data can be analysed as any other population genetic data. You can ignore the warning - it just means that there is some missing genotypes for some of the offspring.
+
+For example, we can conduct an AMOVA to test if pollen pools belonging to different mothers are signficantly differentiated from one another. When an AMOVA is applied to pollen pools it is called a TwoGener analysis (Two-generational analysis; Smouse et al. 2001, Dyer et al. 2004). We use the adonis() function from the vegan pacakage to do the analysis of variance on genetic distance matrices.
+```{r}
+D <- genetic_distance(pollen,mode="amova")
+D <- as.dist(D)
+Moms <- pollen$ID
+adonis(D ~ Moms)
+```
+From this output it can be seen that there is a signficant difference in pollen pools among mothers.
+
+The TwoGener analysis gives a summary statistic describing overall differentiation, but this does not tell us anything about **why** the pollen pools are differentiated. In order to better understand **why**, we can analyse the data spatially just like any other landscape genetic dataset. For example, we can test a basic hypothesis of isolation by distance by asking: are pollen pools from mothers that are geographically close more similar than those that are far? We test this by calculating pairwise genetic similarity (proportion of shared alleles) and relate this to geographic distance
+```{r}
+  # calculate matrix of pairwuse genetic similarity among pollen pools
+  dps <- genetic_distance(pollen, stratum = "ID", mode = "Dps")
+
+  # calculate matrix of pairwise geographic distance among pollen pools
+  xy <- unique(data.frame(pollen$X, pollen$Y))
+  xy.dist <- as.matrix(dist(xy))
+  
+  # plot
+  plot(xy.dist[lower.tri(xy.dist)], dps[lower.tri(dps)], 
+       xlab = "geographic distance (m)", ylab = "proportion of shared alleles (dps)")
+  abline(lm(dps[lower.tri(dps)]~xy.dist[lower.tri(xy.dist)]))
+```
+We see a slight pattern of isolation-by-distance where pollen pools that are spatially close are more similar. 
+
+## Paternity analysis
+TwoGener and related methods are sensitive to inbreeding and strong genetic structure of adult populations, although methods exist to correct for some of these things (e.g. Dyer et al. 2004, Heredity). However, it is often the best (or only) option for quantifying pollen flow for high density species where other analyses such as paternity assignment cannot be conducted. In our case, we have complete sampling of potential fathers within 7 populations and so we are able to conduct a paternity analysis which will give us more detailed information about contemporary pollen flow. Note that we do not have complete sampling of all potential fathers within the larger study region, and so we assume that any seed that is not assigned to a father is a pollen immigration event. In this section we will conduct a paternity analysis using the gstudio package and relate the results to landscape variables.
+
+
+First let's check if our genetic markers have sufficient information to discriminate among alternative fathers by calculating exclusion probabilites
+```{r}
+# exclusion probabilities
+pollen.freqs <- frequencies(dat)
+p.excl <- exclusion_probability( pollen.freqs )
+p.excl
+```
+The second column, Pexl, gives us the information we need. We can see that certain loci have poor ability to exclude alternative potential fathers (e.g. loc2) and others are much more informative (e.g .loc3). Luckily, we have multiple loci to use and the multilocus exclusion probability can be calculated by multiplying across loci
+```{r}
+1- prod((1-unlist(p.excl$Pexcl)))
+```
+We see that using all seven loci, we acheive avery high exlusion probability, and that on average we should be able to exclude 99.9 of alternative fathers.
+
+We will use the gstudio function paternity(), which conducts a fractional allocation paternity analyis. This approach is useful when  full exclusion cannot be acheived. In case multiple potential fathers cannot be exluded for a particular offspring, a likelihood of paternity is calculated for each non-excluded father based on mendelian transition probabilites. Note that in the original paper from which these data originate we used a more sophisticated approach implemented in the program COLONY2. COLONY2 can account for genotyping errors, whereas the gstudio paternity() approach cannot and so we had to throw out some of our data.
+
+Now let's conduct a paternity analysis for the seeds from mother 3083.
+
+```{r}
+# parentage for mom 3083
+offspring.3083 <- subset(dat, OffID!=0 & ID == "3083")
+mother.3083 <- subset(dat, ID == "3083" & dat$OffID == 0 )
+fathers.3083 <- subset(dat, OffID == 0 & Population %in% offspring.3083$Population)
+pat.3083 <- paternity(offspring.3083, mother.3083, fathers.3083 )
+pat.3083
+```
+We see that not all fathers could be excluded for some of the offspring.
+
+Now let's do the paternity for the entire data set. This is easiest to do in a loop or using the apply family. But, because we have not sampled all potential fathers in the larger study region, paternity() will return an error when all offspring of a certain mother cannot be assigned to any father. To get around this, we will use the possibly() function from the library purrr. When an error occurs, it will simply return NA instead of stopping our function. This will take about a minute to run.
+
+```{r}
+# make a dataframe just for the offspring
+offspring <- subset(dat, OffID!=0)
+
+# here is the function that we will apply to all mothers
+get.parentage <- function(x){
+  tmp.offspring <- subset(offspring, ID == x)
+  tmp.mother <- subset(dat, ID == x & OffID == 0)
+  tmp.fathers <- subset(dat, OffID == 0 & Population %in% tmp.offspring$Population)
+  return(paternity(tmp.offspring, tmp.mother, tmp.fathers ))
+}
+
+# purrr-ify the function so that NA is returned when an error pops up
+possible_pat <- possibly(get.parentage, otherwise = NA_real_)
+
+# run the function and store the output
+pat.all <- map(unique(offspring$ID), possible_pat) # list of results for each mother
+pat.all <- do.call(rbind, pat.all[!is.na(pat.all)]) # convert the list to a dataframe
+```
+
+For the purposes of this tutorial we will keep only the highest probability father for each offspring. With your own data you should choose some sort of threshold (e.g. keep only those with probability > 0.9) or can conduct analyses using the probability as weights.
+```{r}
+# create a temporary ID that combines the MomID and the OffID
+pat.all$tmpID <- paste(pat.all$MomID, pat.all$OffID, sep="_")
+# get rid of all rows with duplicated tmpIDs, leaving just the first entry for each
+pat.sub <- pat.all[!duplicated(pat.all$tmpID),]
+# get rid of the tmpID column
+pat.sub <- pat.sub[,1:4] # get rid of the tmp_ID column
+
+```
+
+We can use the spider_plot() function from gstudio to visualize the paternity assignments. Spiderplot() takes the output from paternity() and combines it with XY coordinate information. The output includes the coordinates of both mother (X, Y) and father (Xend, Yend) for each offspring. Here we will also add in the population IDs so that we can visualize each of the 7 populations separately
+```{r}
+pat.sub <- spiderplot_data(pat.sub, dat, longitude = "X", latitude = "Y")
+# add populatoin IDs
+pat.sub <- merge(pat.sub, dat[, c("Population", "ID" ,"OffID")],
+                 by.x=c("MomID", "OffID"), by.y=c("ID", "OffID"), all.x=T)
+
+head(pat.sub)
+```
+
+Use ggplot to visualize the reconstructed pollen flow events. Let's look at population A25 first. The arrows point to mothers, and arrows without lines indicate selfing events. The darkness of the lines is proportional to the numbr of pollen flow events between a particular mother and father
+```{r}
+pop <- "A25"
+ggplot() +
+  geom_point(data=dat[dat$Population==pop,], aes(X,Y, size=3, color="red")) +
+  geom_segment(data=pat.sub[pat.sub$Population==pop,], aes(x=X, y=Y, xend=Xend, yend=Yend),
+               size=1.5, alpha=0.2,
+               arrow = arrow(ends = "first", length = unit(0.3, "cm"))) +
+  theme(legend.position = "none")
+
+```
+
+We can calculate the distance of each pollen flow event, and the plot the distribution to visualize the dispersal kernel
+```{r}
+# calculate distance
+pat.sub$pollen.dist <- 
+  unlist(lapply(1:nrow(pat.sub),
+               function(x) dist(rbind(c(pat.sub$X[x], pat.sub$Y[x]),
+                                      c(pat.sub$Xend[x], pat.sub$Yend[x]))) ))
+# plot the distribution of pollination events that are greater than 0 m (i.e. excluding selfing)
+ggplot(pat.sub[pat.sub$pollen.dist >0,]) +
+  geom_histogram( aes(x=pollen.dist),  bins=20) +
+  xlab("distance from pollen source (m)")  +
+  ylab("# of pollen flow events")
+
+```
+
+##Linking paternity to ecological variables
+Now that we have conducted our paternity analysis, we can ask which ecological factors explain the patterns that we see. First we will look within populations: what factors explain pollen flow distances within populations? Second, we will look at the population level: what factors explain pollen immigration rates?
+
+We have collected some information about mothers, which we now add to the pat.sub dataframe. Specifically, we have measured mother isolation (how far a mom is from other conspecifics) and local floral density (how many flowers are within 2 m of mother plants). We are only interested in outcrossed pollen events so we make a new data frame that excludes selfing
+```{r}
+# read in the data
+mom.vars <- read.csv("pulsatilla_momVariables.csv")
+# exclude selfing
+pat.outcrossed <- subset(pat.sub, MomID != DadID)
+# add mom variables to pat.outcrossed
+pat.outcrossed <- merge(pat.outcrossed, mom.vars, by.x = "MomID", by.y = "ID", all.x=T)
+# look at the data
+head(pat.outcrossed)
+```
+Let's run some models to test if mom.isolation or flower.density explain pollen flow distances. We used mixed models with population and mother ID as random effects to control for multiple sampling from the same mom and populations
+
+```{r}
+# specify the model
+mod <- lmer(log(pollen.dist) ~ scale(log(flower.density)) + scale(log(mom.isolation)) 
+           + (1|Population/MomID),
+           data=pat.outcrossed, na.action = "na.fail", REML=F)
+# model selection
+dredge(mod)
+```
+We see that the best model includes both flower desnity and mom.isolation. Let's plot the relationships.
+```{r}
+ggplot(pat.outcrossed, aes(x=log(mom.isolation), y=log(pollen.dist))) + geom_point() +
+  stat_smooth(method="lm", se=F) + 
+  xlab("log(mom isolation)") +
+  ylab("log(pollen flow distance)")
+```
+
+```{r}
+ggplot(pat.outcrossed, aes(x=log(flower.density), y=log(pollen.dist))) + geom_point() +
+  stat_smooth(method="lm", se=F) + 
+  xlab("log(flower density)") +
+  ylab("log(pollen flow distance)")
+```
+It looks like moms that are more isolated and are surrounded by fewer flowers receive pollen from further away
+
+Now let's look at the population level. First we need to calcualte how many offspring were unable to be assigned a father. We do this by adding the first for columns of the paternity analysis output (which contains only successful assignments) to the offspring df (which includes all offspring, regardless of assignment). If there is no assigment, Fij will be NA in the newly merged data frame
+
+```{r}
+offspring <- merge(offspring, pat.sub[,1:4], by.x=c("ID", "OffID"), by.y=c("MomID", "OffID"), all.x=T)
+head(offspring)
+```
+
+Calculate the number of outside pollination events per Population by counting the number of NAs in the Fij column.
+```{r}
+# number of outside pollination events per popualtion 
+num.out <- tapply(offspring$Fij, offspring$Population, function(x) sum(is.na(x)))
+# total number of pollination events per popualtion (should be same as the number of seeds sampled)
+num.tot <- table(offspring$Population)
+```
+
+Let's put this information into a data frame and add ecological information that we have gathered about each popualation. Specifically we have measured the proportion of forested landscape at radii of 50, 100, 250, 500, and 1000 metres from popualtion centroids, and have measured population size as the total numer of flowering plants per population
+
+```{r}
+# turn it into a dataframe
+pop.df <- data.frame(Population=names(num.out), num.out=as.vector(num.out), num.tot=as.vector(num.tot))
+# read in the population variable data
+pop.vars <- read.csv("pulsatilla_population.csv")
+# add the population variables to our outside pollination data
+pop.df <- merge(pop.df, pop.vars, by="Population")
+pop.df
+```
+
+Now we can run a model to see which variables best explain the proportion of immigration pollen per population. Because we only have n=7 populations, we limit the models to a single explanatory variable. We first scale the variables to make sure estimates are comparable. Our response variable is a proportion, so we use a glm with binomial error distribution.
+```{r}
+# scale the explanatory variables
+pop.df[,4:9] <- scale(pop.df[,4:9])
+# specify the model
+mod2 <- glm(cbind(num.out, num.tot-num.out)~forest.50+forest.100
+              +forest.250+forest.500+forest.1000+
+              +population.size,
+              family=binomial(link = "logit"), data=pop.df, na.action = "na.fail")
+# model selection, specifying that only a single predictor per model should be included
+dredge(mod2,m.lim=c(0,1) )
+
+```
+We see that the best model is the null intercept model, suggesting that none of the predictors fit the data super well. However, the next best model includes forest.250 and with an delta AICc of less than 2, we take this model to be equally likely. Interestingly, in our original paper with found that forest.500 was the best predictor, followed by population size. This suggests that the choice of paternity analysis really can make a difference.
+
+Let's plot the model including forest.250
+
+```{r}
+forest.250.mod <- glm(cbind(num.out, num.tot-num.out) ~ forest.250,
+                family=binomial(link="logit"), data=pop.df)
+ggplot(pop.df, aes(x=forest.250, y=num.out/num.tot)) + geom_point() +
+  geom_line(aes(x=forest.250, y=predict(forest.250.mod, type="response"))) +
+  xlab("proportion of forest at 250 m") +
+  ylab("proportion of immigrant pollen")
+
+```
+We see that populations surrounded by more forest receive less outside pollen.
