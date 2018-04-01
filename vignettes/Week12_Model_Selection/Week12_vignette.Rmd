@@ -250,12 +250,20 @@ Note: package MuMIn will do this for you, but for this exercise it is useful to 
 
 In information theory, we use information criteria (AIC, BIC) to evaluate the relative distance of our hypothesis from truth. For more information, see Burnham and Anderson (2002).
 
+**NOTE HW: See alternative code below, using named list of models.**
+
 ```{r}
-CSF.IC <- cbind(Model = c(1:5), 
-                AIC = c(AIC(mod1), AIC(mod2), AIC(mod3), 
-                        AIC(mod4), AIC(mod5)), 
-                BIC = c(BIC(mod1), BIC(mod2), BIC(mod3), 
-                        BIC(mod4), BIC(mod5)))
+#CSF.IC <- cbind(Model = c(1:5), 
+#                AIC = c(AIC(mod1), AIC(mod2), AIC(mod3), 
+#                        AIC(mod4), AIC(mod5)), 
+#                BIC = c(BIC(mod1), BIC(mod2), BIC(mod3), 
+#                        BIC(mod4), BIC(mod5)))
+#CSF.IC
+
+# Alternative code HW:
+Models <- list(Full=mod1, Landcover=mod2, HumanFootprint=mod3, 
+               EnergyConservation=mod4, Historical=mod5)
+CSF.IC <- data.frame(AIC = sapply(Models, AIC),BIC = sapply(Models, BIC)) 
 CSF.IC
 ```
 
@@ -265,22 +273,24 @@ Now we will work with these a bit. First, because we do not have an infinite num
 
 First, find the k parameters used in the model and add them to the table.
 
+**NOTE HW: Again, see alternative code below, using named list of models.**
 ```{r}
-CSF.IC <- cbind(CSF.IC, 
-                k = c(attr(logLik(mod1), "df"), 
-                      attr(logLik(mod2), "df"), 
-                      attr(logLik(mod3), "df"), 
-                      attr(logLik(mod4), "df"), 
-                      attr(logLik(mod5), "df")))
+#CSF.IC <- cbind(CSF.IC, 
+#                k = c(attr(logLik(mod1), "df"), 
+#                      attr(logLik(mod2), "df"), 
+#                      attr(logLik(mod3), "df"), 
+#                      attr(logLik(mod4), "df"), 
+#                      attr(logLik(mod5), "df")))
+CSF.IC <- data.frame(CSF.IC, k = sapply(Models, function(ls) attr(logLik(ls), "df")))
 CSF.IC
 ```
 
 Now, calculate AICc and add it to the dataframe:
 
 ```{r}
-CSF.IC<- as.data.frame(CSF.IC)
-AICc <- CSF.IC$AIC + 2*CSF.IC$k*(CSF.IC$k+1)/(48-CSF.IC$k-1)
-CSF.IC <- cbind(CSF.IC, AICc = AICc)
+#CSF.IC<- as.data.frame(CSF.IC)
+CSF.IC$AICc <- CSF.IC$AIC + 2*CSF.IC$k*(CSF.IC$k+1)/(48-CSF.IC$k-1)
+#CSF.IC <- cbind(CSF.IC, AICc = AICc)
 CSF.IC
 ```
 
@@ -290,12 +300,13 @@ Next we calculate evidence weights for each model based on AICc and BIC. These c
 
 Calculate model weights for AICc:
 
+**NOTE HW: Should 'AICew' be 'AICcew'?**
+
 ```{r}
 AICcmin <- min(CSF.IC$AICc)
 RL <- exp(-0.5*(CSF.IC$AICc - AICcmin))
 sumRL <- sum(RL)
-AICew <- RL/sumRL
-CSF.IC <- cbind(CSF.IC, AICew)
+CSF.IC$AICew <- RL/sumRL
 ```
 
 Calculate model weights for BIC:
@@ -304,8 +315,7 @@ Calculate model weights for BIC:
 BICmin <- min(CSF.IC$BIC)
 RL.B <- exp(-0.5*(CSF.IC$BIC - BICmin))
 sumRL.B <- sum(RL.B)
-BICew <- RL.B/sumRL.B
-CSF.IC <- cbind(CSF.IC, BICew)
+CSF.IC$BICew <- RL.B/sumRL.B
 round(CSF.IC,3)
 ```
 
@@ -320,13 +330,15 @@ In the multi-model inference approach, we can look across all the models in the 
 According to Row et al. (2017), we can use the confidence interval from the variables in the models to identify those that are contributing to landscape resistance. Looking at models 2 and 3, we have some evidence that shrub and forest cover matter, but it's not as strong as the evidence for ag and development. Let's look at the parameter estimates to understand more.
 
 ```{r}
-summary(mod2)
+#summary(mod2)
+summary(Models$Landcover)
 ```
 
 Now we'll estimate the 95% confidence interval for these estimates:
 
 ```{r}
-confint(mod2, level = 0.95, method = "Wald")
+#confint(mod2, level = 0.95, method = "Wald")
+confint(Models$Landcover, level = 0.95, method = "Wald")
 ```
 
 The estimates that overlap 0 do not have as much evidence of being important to gene flow, based on simulations in Row et al. (2017). So in this case, there is only strong evidence that agriculture influences the rate of gene flow. Note that because the metric is genetic distance, negative values indicate more gene flow.
@@ -336,6 +348,21 @@ The estimates that overlap 0 do not have as much evidence of being important to 
 **NOTE HW: Maybe intersperse the questions in the text where they fit? This could make the lab more engaging for users.**
 
 **NOTE HW: What is your take on (a) factor importance, and (b) estimating parameters by weighting across models? Maybe we could add a brief section 'multimodel inference' that uses functions from MuMIn to calculate model weights, factor importance and model-averaged estimates and CIs? It's up to you if you want this or not. If you think it's a good idea but we don't have the time now, we can add it later.**
+
+
+
+```{r}
+#Models.avg <- MuMIn::model.avg(Models, rank="AICc",
+#                               subset=cumsum(weight) <= .95)
+Models.avg <- MuMIn::model.avg(Models, rank="AICc",
+                               subset=delta < 4)
+Models.avg
+Models.avg$msTable
+Models.avg$coefficients
+Models.avg$coefArray
+Models.avg$importance
+confint(Models.avg)
+```
 
 **Questions**:
 
