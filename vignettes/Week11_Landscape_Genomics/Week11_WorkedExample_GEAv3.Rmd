@@ -40,6 +40,7 @@ library(LandGenCourse)
 ```
 
 The packages 'LEA' and 'qvalue' are available from the 'Bioconductor' repository. 
+
 ```{r message=FALSE, warning=TRUE}
 if(!require(qvalue)) {
   source("http://bioconductor.org/biocLite.R")
@@ -53,10 +54,10 @@ if(!require(LEA)) {
 #require(qvalue)
 ```
 
-The following 'setup chunk' is used to set the root address of file paths to the folder 'output' in the project folder.
+The following 'setup chunk' is used to set the root address of file paths to the root of the project folder.
 
 ```{r setup}
-knitr::opts_knit$set(root.dir = normalizePath("../output")) 
+knitr::opts_knit$set(root.dir = normalizePath("..")) 
 ```
 
 ## 2. Import and prepare the data
@@ -178,8 +179,12 @@ The following (commented out) line shows the recommended parameters:
 ```{r, LFMM1, results="hide"}
 wolf.lfmm <- NULL
 
-wolf.lfmm <- LEA::lfmm("gen.lfmm", "PC1.env", K=K, project="new", 
-                       repetitions=3, iterations=4000, burnin=2000)
+wolf.lfmm <- LEA::lfmm("gen.lfmm",
+                       "PC1.env", 
+                       K=K, project="new", 
+                       repetitions=1, iterations=400, burnin=200)
+#wolf.lfmm <- LEA::lfmm("gen.lfmm", "PC1.env", K=K, project="new", 
+#                       repetitions=3, iterations=4000, burnin=2000)
 
 #wolf.lfmm <- lfmm("gen.lfmm", "PC1.env", K=K, project="new", repetitions=10, iterations=5000, burnin=2500)
 ```
@@ -378,11 +383,11 @@ Dormann CF, Elith J, Bacher S, et al. (2013) [Collinearity: a review of methods 
 
 Forester BR, Lasky JR, Wagner HH, Urban DL (2018) [Comparing methods for detecting multilocus adaptation with multivariate genotype-environment associations](https://www.biorxiv.org/content/early/2017/12/17/129460). *Molecular Ecology*.
 
-Forester BR (2018) [Vignette: Detecting multilocus adaptation using Redundancy Analysis (RDA)](http://popgen.nescent.org/2018-03-27_RDA_GEA.html). Population Genetics in R: [popgen.nescent.org](http://popgen.nescent.org/).
+Forester BR (2018) [Vignette: Detectingn multilocus adaptation using Redundancy Analysis (RDA)](http://popgen.nescent.org/2018-03-27_RDA_GEA.html). Population Genetics in R: [popgen.nescent.org](http://popgen.nescent.org/).
 
-Francois O, Martins H, Caye, K, Schoville S (2016) [Controlling false discoveries in genome scans for selection](http://onlinelibrary.wiley.com/doi/10.1111/mec.13513/full). *Molecular Ecology*, 25: 454-469.
+Fran?ois O, Martins H, Caye, K, Schoville S (2016) [Controlling false discoveries in genome scans for selection](http://onlinelibrary.wiley.com/doi/10.1111/mec.13513/full). *Molecular Ecology*, 25: 454-469.
 
-Frichot E, Francois O (2015) [LEA: An R package for landscape and ecological association studies](http://onlinelibrary.wiley.com/doi/10.1111/2041-210X.12382/abstract). *Methods in Ecology and Evolution*, 6: 925-929.
+Frichot E, Fran?ois O (2015) [LEA: An R package for landscape and ecological association studies](http://onlinelibrary.wiley.com/doi/10.1111/2041-210X.12382/abstract). *Methods in Ecology and Evolution*, 6: 925-929.
 
 Gosselin T (2017) [grur: an R package tailored for RADseq data imputations](https://github.com/thierrygosselin/grur). R package version 0.0.1 doi:10.5281/zenodo.496176.
 
@@ -398,9 +403,8 @@ Rellstab C, Gugerli F, Eckert AJ, Hancock AM, Holderegger R (2015) [A practical 
 
 Schweizer RM, vonHoldt BM, Harrigan R, et al. (2016) [Genetic subdivision and candidate genes under selection in North American grey wolves](http://onlinelibrary.wiley.com/doi/10.1111/mec.13364/full). *Molecular Ecology*, 25: 380-402.
 
-
 Zuur AF, Ieno EN, Elphick CS (2010) [A protocol for data exploration to avoid common statistical problems](https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/j.2041-210X.2009.00001.x). *Methods in Ecology and Evolution*, 1: 3-14.
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
-LandGenCourse::detachAllPackages()
+#LandGenCourse::detachAllPackages()
 ```
