@@ -19,11 +19,7 @@ vignette: >
 
 **Goals**: The goal of this worked example is for you to become familiar with creating and analyzing landscape genetic hypotheses using maximum likelihood population effect models (MLPE; Van Strien et al. 2012) and information theory. With this approach, we focus on evaluating evidence for the influence of the (intervening) landscape on link-based metrics (i.e. genetic distance). Incorporating node-based effects (i.e. pond size, etc.) will be covered in the gravity modeling lab. 
 
-We will re-analyze a dataset from Goldberg and Waits (2010) using a maximum likelihood population effect model (MLPE). 
-
-Here's a map of the study area. The lines represent those pair-wise links between sampling locations that we will be considering here (graph model: Delaunay triangulation). 
- 
-![Map of study area](Week12_Fig1.png)
+We will re-analyze a dataset from Goldberg and Waits 2010 using a maximum likelihood population effect model (MLPE). 
 
 ### b) Data set
 
@@ -218,7 +214,7 @@ Next we will check to make sure the residuals are normally distributed.
 hist(residuals(mod1)) 
 ```
 
-This can also be done with the `qqmath` function in package lattice if you are more used to seeing qq plots. These residuals look okay so we will move on (but if this were a publication we would do a closer examination of the shape of the data at the ends of the distribution). 
+This can also be done with the qqmath function in package lattice if you are more used to seeing qq plots. These residuals look okay so we will move on (but if this were a publication we would do a closer examination of the shape of the data at the ends of the distribution). 
 
 Now we will make a function (called MLPE) to fit the rest of our models, so that we are not typing the same code over and over (which causes errors and long code that is difficult to navigate or update):
 
@@ -251,7 +247,6 @@ mod5 <- MLPE(logDc.km ~ soils + slope + solarinsoz + (1|pop1), CSFdata)
 ### d) Compare evidence for models
 
 First we need to refit the models with REML = FALSE to get a useable estimate of likelihood for AIC and BIC. To do this, we'll create a new function called MLPEnoREML and use it to fit our 5 models.
-
 ```{r}
 MLPEnoREML <- function(variables, data) {
   mod2 <- lme4::lFormula(variables, data = data, REML = FALSE)
@@ -276,11 +271,12 @@ mod4noREML <- MLPEnoREML(logDc.km ~ slope + shrub + dev + (1|pop1), CSFdata)
 mod5noREML <- MLPEnoREML(logDc.km ~ soils + slope + solarinsoz + (1|pop1), CSFdata)
 ```
 
+
 In information theory, we use information criteria (AIC, BIC) to evaluate the relative distance of our hypothesis from truth. For more information, see Burnham and Anderson (2002).
 
 Note: package MuMIn will do this for you, but for this exercise it is useful to see all the pieces of what goes into your evaluation. 
-
 ```{r}
+
 Models <- list(Full=mod1noREML, Landcover=mod2noREML, HumanFootprint=mod3noREML, 
                EnergyConservation=mod4noREML, Historical=mod5noREML)
 CSF.IC <- data.frame(AIC = sapply(Models, AIC),
@@ -298,7 +294,6 @@ First, find the k parameters used in the model and add them to the table.
 CSF.IC <- data.frame(CSF.IC, k = sapply(Models, function(ls) attr(logLik(ls), "df")))
 CSF.IC
 ```
-
 **Question 2**:	How does k relate to the number of parameters in each model?
 
 Now, calculate AICc and add it to the dataframe:
@@ -313,6 +308,7 @@ CSF.IC
 Next we calculate evidence weights for each model based on AICc and BIC. These can be interpreted as the probability that the model is the closest to truth in the candidate model set. 
 
 Calculate model weights for AICc:
+
 
 ```{r}
 AICcmin <- min(CSF.IC$AICc)
@@ -330,7 +326,6 @@ sumRL.B <- sum(RL.B)
 CSF.IC$BICew <- RL.B/sumRL.B
 round(CSF.IC,3)
 ```
-
 **Question 3**:	What did using AICc (rather than AIC) do to inference from these results?
 
 In the multi-model inference approach, we can look across all the models in the dataset and their evidence weights to better understand the system. Here we see that models 1 and 5 have very little evidence of being close to the truth, that models 2 and 4 have more, and that model 3 has the most evidence of being the closest to truth, although how much more evidence there is for model 3 over 2 and 4 depends on which criterion you are looking at. BIC imposes a larger penalty for additional parameters, so it has a larger distinction between these. Let's review what these models are:
@@ -366,6 +361,8 @@ In essence, we use the confidence intervals to assess whether we can differentia
 
 **Question 6**:  We excluded grass from our models because of multicollinearity. How could we investigate the importance of this variable?
 
+
+
 ## 3. Your turn to test additional hypotheses!
 
 Create your own (small) set of hypotheses to rank for evidence using the dataset provided. Modify the code above to complete the following steps: 
@@ -377,18 +374,6 @@ Create your own (small) set of hypotheses to rank for evidence using the dataset
 5.  Create confidence intervals from models with high evidence weights.
 
 What can you infer from your analysis about what influences gene flow of this species?
-
-## 4. References
-
-- Burnham KP and DR Anderson. 2002. Model Selection and Multimodel Inference: A Practical Information Theoretic Approach. Chapter 8, p. 437-454. Springer-Verlag, New York.
-
-- Goldberg CS and LP Waits (2010). Comparative landscape genetics of two pond-breeding amphibian species in a highly modified agricultural landscape. Molecular Ecology 19: 3650-3663.
-
-- Row JR, ST Knick, SJ Oyler-McCance, SC Lougheed and BC Fedy (2017). Developing approaches for linear mixed modeling in landscape genetics through landscape-directed dispersal simulations. Ecology & Evolution 7: 3751–3761.
-
-- Van Strien MJ, D Keller and R Holderegger (2012). A new analytical approach to landscape genetic modelling: least‐cost transect analysis and linear mixed models. Molecular Ecology 21: 4010-4023.
-
-
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 LandGenCourse::detachAllPackages()
