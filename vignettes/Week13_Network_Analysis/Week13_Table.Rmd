@@ -1,0 +1,19 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Note: The table below is formatted with package 'kableExtra':
+  https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html
+
+```{r}
+library(kableExtra)
+
+Table <- data.frame(Model=seq(1:5), AIC=c(""), BIC=c(""), Notes_from_plots=c(""))
+names(Table)[4] <- "Notes from plots"
+Table %>% knitr::kable("html") %>% 
+  kableExtra::kable_styling(bootstrap_options = c("striped")) %>%
+  column_spec(1, width = "3em",bold = T, border_right = T) %>% 
+  column_spec(2, width = "7em", border_right = T) %>% 
+  column_spec(3, width = "7em", border_right = T)
+```

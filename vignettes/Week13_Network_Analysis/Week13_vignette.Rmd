@@ -27,7 +27,7 @@ In this exercise, you will use the gravity model framework to build an empirical
 
 Several data files are included with the GeNetIT package:
 
-- **Dps*`**: genetic distance in proportion of shared alleles.
+- **Dps**: genetic distance in proportion of shared alleles.
 - **ralu.site**: this is a shape file with wetland data and spatial locations
 - **rasters**: 30 m rasters of landscape variables. 
 
@@ -38,7 +38,7 @@ All required packages should have been installed already when you installed 'Lan
 
 ```{r packages global_options, include=TRUE, results="hide", message=FALSE, warning=FALSE}
 library(LandGenCourse)
-require(sp)
+library(sp)
 #require(raster)
 #require(rgdal)
 #require(raster)
@@ -89,7 +89,7 @@ raster::plot(xvars)
 
 Note: see also the Week 2 Worked Example.
 
-At each sample site, extracting values from cti and err27 as at site variables:  
+At each sample site, extracting values from cti and err27 as at-site variables:  
 
 ```{r}
 ralu.site@data <- data.frame(ralu.site@data, 
@@ -148,7 +148,7 @@ plot(dist.graph, add=T)
 points(ralu.site, pch=20, col="red")
 ```
 
-**Challenge**: can you change the symbol and color for the sample sites?
+**Challenge**: Red on green can be difficult to discern.  Can you change the symbol and color for the sample sites?
 
 **Question 1**: 
 
@@ -161,9 +161,15 @@ points(ralu.site, pch=20, col="red")
 
 You can calculate any statistical moment (e.g., mean, standard deviation) to summarize the values between sites. This examples uses min, mean, max and variance. 
 
-Note: to calculate these summary statustics, the data need to be numeric. All variables used here are coded as floating point data. Calculating statistical moments of categorical data (such as land cover) does not make sense as these values represent categories (names) and not numerical values.
+Note: to calculate these summary statistics, the data need to be numeric. All variables used here are coded as floating point data. Calculating statistical moments of categorical data (such as land cover) does not make sense as these values represent categories (names) and not numerical values.
 
-NOTE HW: Explain arguments?
+Arguments:
+
+- **x**: an 'sp' class 'SpatialLinesDateFrame' object.  In this case, the 'dist.graph'.
+- **r**: the raster stack (the predictor, or x, variables)
+- **d**: the distance between samples on the edges (in the units of the data). In this case, 30 m because the data are 30 meter resolution. If we sample a point every 30 m along the edge, we essentially sample every cell along the vector.  
+- **stats**: the statistics calculated. You can pass a custom statistical function.
+- **sp**: if TRUE would include a 'sp' class 'SpatialPOintsDataFrame' of the line point samples (this takes a lot of space).
 
 ```{r}
 stats <- GeNetIt::graph.statistics(dist.graph, r = xvars, d=30, 
@@ -186,14 +192,14 @@ wet.pct <- function(x) {
 }
 ```
   
-Now, apply the function 'wet.pct' to calculate the percent wetland along each edge. Note that as in the Worked Example from Week 11, these are not distances but % of cells that are wetlands.
+Now, apply the function 'wet.pct' to calculate the percent wetland along each edge. Note that as in the Worked Example from Week 11, these are not distances but % of cells that are wetlands.  
 
 ```{r}
 lc.stats <- GeNetIt::graph.statistics(dist.graph, r = land.cov, 
                                       d=30, stats = "wet.pct")
 ```
 
-There may be cell with missing land cover data. Set their wetland status to '0':
+There may be cells with missing land cover data. Set their wetland status to '0':
 
 ```{r}
 lc.stats[is.na(lc.stats)] <- 0
@@ -206,20 +212,20 @@ dist.graph@data <- data.frame(dist.graph@data, lc.stats)
 str(dist.graph@data)
 ```
 
-**Challenge**: Can you calculate a variable that is percent forest between sites?  
+**Challenge**: Can you calculate a variable that is percent forest between sites?  For the NLCD legend, see https://www.mrlc.gov/nlcd06_leg.php.  
 
 **Question 2**: What other statistical moments might be informative? 
 
 **Question 3**: Why are you calculating % of habitat and not amount for nlcd data (wet.pct)?  
 
-**Question 4**: We know animals (and pollen/seeds) are influenced by more than a 30 m line.  How might we account for this reality?
+**Question 4**: We know functional connectivity of organisms (animals,  pollen/seeds) are influenced by more than a 30 m line.  How might we account for this reality within this modeling framework?
 
 ## 4. Fit gravity model 
 
 Now we are ready for the actual gravity model analysis. There are a few things to remember:
 
 1.	In order to solve the gravity form, we take the natural log of all dependent and independent variables.  
-2.	The dependent variable (y) is the genetic distance (T).
+2.	The dependent variable (y) is the genetic distance ($T_{ij}$ in the gravity model).
 3.	The independent variables (x) fall into the three components of the gravity model: 
     - distance (w), 
     - at site (v), and 
@@ -317,6 +323,8 @@ Now is your opportunity to build your own models. Apply what you learned from th
 You will use your information to fill out the table below. To see potential variables, type names(cdata).  
 
 **Challenge**: You can also try applying other networks to these data.
+
+![Table for your results](WE13_Fig1.png)
 
 ### a) Description of potential variables
 
