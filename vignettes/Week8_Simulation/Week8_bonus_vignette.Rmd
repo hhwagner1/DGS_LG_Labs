@@ -35,9 +35,17 @@ All required packages should have been installed already when you installed 'Lan
 
 ```{r library, message=FALSE, warning=TRUE}
 library(LandGenCourse)
-#library(microbenchmark) 
-
-if(!require(lineprof)) {devtools::install_github("hadley/lineprof")}
+#library(microbenchmark)
+#library(profvis)
+#library(here)
+#library(readr)
+#library(data.table)
+#library(feather)
+#library(rio)
+#library(devtools)
+#library(parallel)
+#library(doParallel)
+#library(knitr)
 ```
 
 ## 2. Navigating the file system
@@ -227,7 +235,7 @@ Let's benchmark the import again. We can use the function `import` for all of th
 
 ```{r microbenchmark3}
 microbenchmark(times = 10, unit = "ms", 
-          csv=import(file.path(here::here(), "output", "gen.csv")),
+          csv= import(file.path(here::here(), "output", "gen.csv")),
           RData=import(file.path(here::here(), "output", "gen.RData")),
           rds=import(file.path(here::here(), "output", "gen.rds")),
           feather=import(file.path(here::here(), "output", "gen.feather")))
@@ -591,7 +599,7 @@ On Windows, it is easier to use the package 'doParallel' with the function 'fore
 - Check number of clusters by printing `cl`.
 - Register the cluster with `registerDoParallel`. If you omit this step, the code will not use parallel computing.
 
-The following code is commented out to avoid problems when knitting the Notebook.
+The following code is commented out to avoid problems when knitting the Notebook. You may uncomment and run it.
 
 ```{r doParallel}
 library(doParallel)
@@ -612,7 +620,7 @@ m2 <- foreach(i = 1:ncol(x)) %do% (mean(x[,i], na.rm=TRUE))
 #m3 <- foreach(i = 1:ncol(x)) %dopar% (mean(x[,i], na.rm=TRUE))
 ```
 
-Let's benchmark this again. We'll only do 3 replicates this time:
+Let's benchmark this again. We'll only do 3 replicates this time (uncomment before running this code).
 
 ```{r microbenchmark5}
 #method1 <- function(x) {colMeans(x, na.rm=TRUE)}
