@@ -9,9 +9,11 @@ output:
     fig_width: 4 
     fig_height: 3.5
 vignette: >
+  %\VignetteEncoding{UTF-8}
   %\VignetteIndexEntry{Week 2: Spatial Data}
   %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
+editor_options: 
+  chunk_output_type: console
 ---
 ## 1. Overview of Worked Example
 
@@ -25,7 +27,7 @@ This worked example shows:
 
 - How to import spatial coordinates and site attributes as spatially referenced data.  
 - How to plot raster data in R and overlay sampling locations.
-- How to calculate patch-level and class-level (cover type) landscape metrics.
+- How to calculate landscape metrics.
 - How to extract landscape data at sampling locations and within a buffer around them.
 
 Try modifying the code to import your own data!
@@ -48,12 +50,14 @@ We will extract values at sampling point locations and within a local neighborho
 ### c) Required R libraries
 
 ```{r message=FALSE, warning=TRUE}
-require(LandGenCourse)
+# require(LandGenCourse)
 require(sp)
 require(raster)
 require(GeNetIt)
+require(landscapemetrics) # for landscape metrics
 require(SDMTools) # for landscape metrics
 require(tibble)
+require(dplyr) # should already be imported by landscapemetrics
 ```
 
 Package 'tmaptools' not automatically installed with 'LandGenCourse':
@@ -115,7 +119,7 @@ For more information on CRS, see: https://www.nceas.ucsb.edu/~frazier/RSpatialGu
 We know that these coordinates are UTM zone 11 (Northern hemisphere) coordinates, hence we can use a helper function to find the correct 'proj4string', using function 'get_proj4' from the 'tmaptools' package. (For the Southern hemisphere, you would add 's' after the zone: "utm11s"). Here we call the function and the package simultaneously (this is good practice, as it helps keep track of where the functions in your code come from).
 
 ```{r}
-proj4string(Sites.sp) <- tmaptools::get_proj4("utm11")
+# sp::proj4string(Sites.sp) <- tmaptools::get_proj4("utm11")
 ```
 
 If we had longitude and latitude coordinates, we would modify the command like this: 
@@ -230,76 +234,152 @@ Note: land cover types are coded by numbers. A total of 21 sites are classified 
 table(Sites.sp@data$nlcd)
 ```
 
-## 4. Calculate patch-level and class-level landscape metrics
+## 4. Calculate landscape metrics
+We are going to use the package ('landscapemetrics')[https://r-spatialecology.github.io/landscapemetrics/]. 
+It is an R package for calculating landscape metrics in a tidy (for more 
+information see (here)[https://www.tidyverse.org/]) workflow and is 
+basically a reimplementation of ('FRAGSTATS')[https://www.umass.edu/landeco/research/fragstats/fragstats.html]. 
 
-### a) Calculate class-level landscape metrics
+There are three different levels or hierarchies for landscape metrics. Firstly, 
+metrics can be calculated for each single patch (neighbouring cells of the same 
+class) in the landscape. Secondly, metrics can be calculated for a certain class
+and lastly for the whole landscape. All these levels are implemented and easily
+accessible in 'landscapemetrics'. 
 
-Here we evaluate the spatial distribution of each cover type (class - this is not the same here as an object class). This is extremely fast in R, using the function 'ClassStat' from the package 'SDMTools'. But first we'll extract the 'nlcd' raster layer in a separate raster 'NLCD' to simplify the code.
+All functions in landscapemetrics start with lsm_ (for landscapemetrics). 
+The second part of the name specifies the level (patch - p, class - c or landscape - l). 
+The last part of the function name is the abbreviation of the 
+corresponding metric (e.g. enn for the euclidean nearest-neighbor distance). 
+
+The result will be always an identical structured tibble. The first coloumn identifies 
+the layer of the input (in case you use a raster stack). The second layer identifies
+the level of the metric ('patch', 'class' or 'landscape'). The third coloumn identifies 
+the class id. The id coloumn identifies the patch id (will be NA on class- and landscape-
+level). The next coloumn is the abbreviation of the metric and lastly the actual value.
+
+### a) Calculate patch-, class- and landscape-level landscape metrics
+To calculate all available metrics on a level, you can just use the wrapper 
+`calculate_metrics` and specify e.g. for the patch-level `what = "patch"`. The 
+same is possible for class- and landscape-level. However, because quite a lot of 
+metrics are available this is rather slow for large rasters. 
 
 ```{r}
+nlcd <- raster(RasterMaps, layer="nlcd")
 NLCD <- raster(RasterMaps, layer="nlcd")
-NLCD.class <- SDMTools::ClassStat(NLCD,cellsize=30)
+
+# calculate all patch-level metrics using wrapper
+nlcd.patch <- landscapemetrics::calculate_metrics(nlcd, what = "patch")
+# nlcd.class <- landscapemetrics::calculate_metrics(nlcd, what = "class")
+# nlcd.landscape <- landscapemetrics::calculate_metrics(nlcd, what = "landscape")
+
+nlcd.patch
+# nlcd.class
+# nlcd.landscape
+
+# show abbreviation of all calculated metrics
+unique(nlcd.patch$metric)
+# unique(nlcd.class$metric) 
+# unique(nlcd.landscape$metric) 
 ```
 
-For a list of all 37 metrics calculated, check the helpfile for 'ClassStat'. Which metric would you use to quantify the percent forest cover in the landscape?
-
-Background  information is available on the Fragstats webpage: http://www.umass.edu/landeco/research/fragstats/documents/Metrics/Metrics%20TOC.htm
+Alternatively, you can either specify the desired metrics by using the `what` 
+argument or just rowbind the results of the single `lsm_` functions 
+(be aware that the order might be slightly different). Because the tibble is 
+always structured identical, you can easily mix different levels.
 
 ```{r}
-?ClassStat
+# Use the wrapper to calculate some metrics
+nlcd.subset.a <- landscapemetrics::calculate_metrics(nlcd, 
+                                                     what = c("lsm_c_pladj", 
+                                                              "lsm_l_pr", 
+                                                              "lsm_l_shdi"))
+
+# Rowbind results for some metrics
+nlcd.subset.b <- rbind(
+  landscapemetrics::lsm_c_pladj(nlcd), 
+  landscapemetrics::lsm_l_pr(nlcd),
+  landscapemetrics::lsm_l_shdi(nlcd)
+)
+
+nlcd.subset.a
+nlcd.subset.b
 ```
 
-### b) Calculate patch-level landscape metrics for 'Evergreen Forest'
-
-Calculating patch-level metrics is a little more involved, as we have to decide which cover type (class) to analyze, and then delinate patches for that cover type. Then we calculate statistics for each patch.
-
-The first step is to reduce the land cover map 'nlcd' to a binary map showing evergreen forest vs. any other cover type. We can do this by using a logical test: 'RasterMaps==42', which tests for each cell in NLCD whether it is equal to 42. This results in a binary map, which we can plot, and overlay the sampling locations.
-
-```{r fig.width=4.45, fig.height=4}
-par(mar=c(3,3,1,2))
-Forest <- (NLCD==42)
-plot(Forest)
-points(Sites.sp, pch=21, bg="yellow", col="black")
-```
-
-We use the function 'ConnCompLabel' (package 'SDMTools) to delineate patches with the 8-neighbor rule (other rules are not implemented at this time). This creates a new raster 'Patches' where the value in each cell is the new patch ID if evergreen forest, or zero if not. Then we run 'PatchStat' on the new raster.
+Because the metric names are only abbreviated, there is also a way to include the 
+full name in the results. For the wrapper, just set `full_name = TRUE`. For the rowbinded
+tibble you can use the provided tibble `lsm_abbreviations_names` that comes with 
+the package and use e.g. `left_join()`. 
 
 ```{r}
-Patches <- SDMTools::ConnCompLabel(Forest)
-NLCD.patch <- SDMTools::PatchStat(Patches,cellsize=30)
-dim(NLCD.patch)
-```
+nlcd.subset.a.full <- landscapemetrics::calculate_metrics(nlcd, 
+                                                     what = c("lsm_c_pladj", 
+                                                              "lsm_l_pr", 
+                                                              "lsm_l_shdi"), 
+                                                     full_name = TRUE)
 
-This returns a list of 223 forest patches (rows) and 12 patch-level landscape metrics (columns). Let's look at the first few patches. Patches differ greatly in size! 
+nlcd.subset.b.full <- dplyr::left_join(x = nlcd.subset.b, 
+                                       y = lsm_abbreviations_names, 
+                                       by = "metric")
 
-Note: The first 'patch', with patchID = 0, contains all cells that are not evergreen forest!
+nlcd.subset.b.full
+``` 
+
+# b)
+To only get the results for class 42 (forest), you can just filter the tibble. 
 
 ```{r}
-as.tibble(NLCD.patch)
+# class == 42 for forest
+forest.patch.metrics <- dplyr::filter(nlcd.patch, class == 42)
 ```
 
-For a list of the patch-level metrics calculated, check the helpfile. Which metric would you use to quantify patch size?
+All functions make heavy use of connected components labeling to delineate patches
+(neighouring cells of the same class). To get all patches of one class you can 
+just use `get_patches()`. You can choose between 8-neighbor rule or 4-neighbor rule.
 
 ```{r}
-?PatchStat
+# connected components labeling of landscape
+cc.nlcd <- landscapemetrics::get_patches(nlcd, directions = 8)
+
+# Show name of each class
+sapply(cc.nlcd, function(x) names(x)) 
+
+# The first list entry is class forest
+cc.forest <- cc.nlcd[[1]]
+```
+
+The result will be a list containing a raster for each class present in the input
+raster.
+
+To plot the patches you can use the `show_patches` function.
+
+```{r}
+# Add code here! 
 ```
 
 Let's add forest patch size to the 'Sites.sp' data. First we need to get the patch ID at each sampling location, then its size.
 
 ```{r}
-a <- extract.data(Sites.sp@coords, Patches)   # get patch IDs
-a[a==0] <- NA                                 # these are the non-forested areas
-Sites.sp@data$ForestPatchSize <- NLCD.patch[a,"area"]
-Sites.sp@data$ForestPatchSize[is.na(a)] <- 0  # set patch size to zero for nonforested
+# We are working on a build-in function for this at the moment
+sites_forest <- tibble::as.tibble(raster::extract(x = cc.forest, y = Sites.sp, df = TRUE))
+
+forest.patch.area <- dplyr::filter(nlcd.patch, metric == "area", 
+                                               class == 42, 
+                                               id %in% sites_forest$Class_42)
+
+sites_forest <- dplyr::left_join(x = sites_forest, y = forest.patch.area,
+                                 by = c("Class_42" = "id"))
+
+Sites.sp@data$ForestPatchSize <- sites_forest$value
+Sites.sp@data$ForestPatchSize[is.na(Sites.sp@data$ForestPatchSize)] <- 0 
 Sites.sp@data$ForestPatchSize
 ```
-Plot a bubble map of forest patch size at each sampling location: 
- 
+
+Plot a bubble map of forest patch size at each sampling location.
+
 ```{r fig.width=4.45, fig.height=4}
 par(mar=c(3,3,1,2))
 bubble(Sites.sp, "ForestPatchSize", fill=FALSE, key.entries=as.numeric(names(table(Sites.sp@data$ForestPatchSize))))
 ```
-
 
 ## 5. Extract landscape metrics at sampling locations.
 
@@ -441,5 +521,5 @@ Note: check this week's bonus material if you want to see how to use the new 'sf
 The following code detaches all packages except for some basic ones:
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
-LandGenCourse::detachAllPackages()
+# LandGenCourse::detachAllPackages()
 ```
