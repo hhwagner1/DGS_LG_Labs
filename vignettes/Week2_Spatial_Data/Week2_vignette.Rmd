@@ -66,6 +66,12 @@ Package 'tmaptools' not automatically installed with 'LandGenCourse':
 if(!require(tmaptools)) install.packages("tmaptools")
 ```
 
+You will need the development version of `landscapemetrics`.
+
+```{r}
+devtools::install_github("r-spatialecology/landscapemetrics")
+```
+
 ## 2. Import site data from .csv file
 
 ### a) Import data into 'SpatialPointsDataFrame'
@@ -265,7 +271,6 @@ metrics are available this is rather slow for large rasters.
 
 ```{r}
 nlcd <- raster(RasterMaps, layer="nlcd")
-NLCD <- raster(RasterMaps, layer="nlcd")
 
 # calculate all patch-level metrics using wrapper
 nlcd.patch <- landscapemetrics::calculate_metrics(nlcd, what = "patch")
@@ -288,13 +293,13 @@ argument or just rowbind the results of the single `lsm_` functions
 always structured identical, you can easily mix different levels.
 
 ```{r}
-# Use the wrapper to calculate some metrics
+# use the wrapper to calculate some metrics
 nlcd.subset.a <- landscapemetrics::calculate_metrics(nlcd, 
                                                      what = c("lsm_c_pladj", 
                                                               "lsm_l_pr", 
                                                               "lsm_l_shdi"))
 
-# Rowbind results for some metrics
+# rowbind results for some metrics
 nlcd.subset.b <- rbind(
   landscapemetrics::lsm_c_pladj(nlcd), 
   landscapemetrics::lsm_l_pr(nlcd),
@@ -311,12 +316,14 @@ tibble you can use the provided tibble `lsm_abbreviations_names` that comes with
 the package and use e.g. `left_join()`. 
 
 ```{r}
+# add full metrics name to result
 nlcd.subset.a.full <- landscapemetrics::calculate_metrics(nlcd, 
                                                      what = c("lsm_c_pladj", 
                                                               "lsm_l_pr", 
                                                               "lsm_l_shdi"), 
                                                      full_name = TRUE)
 
+# add full metrics name to result using left_join
 nlcd.subset.b.full <- dplyr::left_join(x = nlcd.subset.b, 
                                        y = lsm_abbreviations_names, 
                                        by = "metric")
@@ -324,7 +331,7 @@ nlcd.subset.b.full <- dplyr::left_join(x = nlcd.subset.b,
 nlcd.subset.b.full
 ``` 
 
-# b)
+# b) Needs heading
 To only get the results for class 42 (forest), you can just filter the tibble. 
 
 ```{r}
@@ -340,10 +347,10 @@ just use `get_patches()`. You can choose between 8-neighbor rule or 4-neighbor r
 # connected components labeling of landscape
 cc.nlcd <- landscapemetrics::get_patches(nlcd, directions = 8)
 
-# Show name of each class
+# show name of each class
 sapply(cc.nlcd, function(x) names(x)) 
 
-# The first list entry is class forest
+# the first list entry is class forest
 cc.forest <- cc.nlcd[[1]]
 ```
 
@@ -359,16 +366,21 @@ To plot the patches you can use the `show_patches` function.
 Let's add forest patch size to the 'Sites.sp' data. First we need to get the patch ID at each sampling location, then its size.
 
 ```{r}
-# We are working on a build-in function for this at the moment
+# (We are working on a build-in function for this at the moment)
+
+# get patch_id of patch each site is located in
 sites_forest <- tibble::as.tibble(raster::extract(x = cc.forest, y = Sites.sp, df = TRUE))
 
+# calculate patch area and filter for patches containing sample location
 forest.patch.area <- dplyr::filter(nlcd.patch, metric == "area", 
                                                class == 42, 
                                                id %in% sites_forest$Class_42)
 
+# match results with sample point id
 sites_forest <- dplyr::left_join(x = sites_forest, y = forest.patch.area,
                                  by = c("Class_42" = "id"))
 
+# add data to sp object
 Sites.sp@data$ForestPatchSize <- sites_forest$value
 Sites.sp@data$ForestPatchSize[is.na(Sites.sp@data$ForestPatchSize)] <- 0 
 Sites.sp@data$ForestPatchSize
@@ -383,135 +395,120 @@ bubble(Sites.sp, "ForestPatchSize", fill=FALSE, key.entries=as.numeric(names(tab
 
 ## 5. Extract landscape metrics at sampling locations.
 
-### a) Calculate class-level metrics in buffer around sampling locations
+### a) Calculate metrics in buffer around sampling locations
 
-First we define the buffer radius (in meters) and cell size:
-
-```{r}
-Radius <- 500    # Define buffer radius
-Cellsize <- 30   # Indicate cell size in meters
-```
-
-Then we create a loop through all sampling locations (all rows of the site data set), calculating class-level metrics for each one within its buffer (see video for further explanations).
+`landscapemetrics` has a build-in function to sample metrics in a buffer around
+sample locations. You can choose the shape of the buffer (either a circle or a
+square) and of course which metrics to sample (similar to `calculate_metrics`).
 
 ```{r}
-Sites.class <- list()
-class.ID <- levels(ratify(NLCD))[[1]]
+# sample some metrics within buffer around sample location 
+nlcd.sampled <- landscapemetrics::sample_metrics(landscape = nlcd, 
+                                                 what = c("lsm_l_ta", 
+                                                          "lsm_c_np",
+                                                          "lsm_c_pland", 
+                                                          "lsm_c_ai"),
+                                                 shape = "square",
+                                                 points = Sites.sp, 
+                                                 size = 500)
 
-for(i in 1:nrow(Sites.sp@data))
-{
-  # Identify all cells that lie within buffer around site i:
-  Buffer.cells <- extract(NLCD, Sites.sp[i,], cellnumbers=TRUE, 
-                          buffer=Radius)[[1]][,1]
-  
-  # Copy land cover map and delete all values outside of buffer:
-  Buffer.nlcd <- NLCD
-  values(Buffer.nlcd)[-Buffer.cells] <- NA
-  
-  # Calculate class-level metrics for cells within buffer:
-  Result <- ClassStat(Buffer.nlcd,cellsize=Cellsize)
-  
-  # Merge Results table with 'class.ID' to ensure that all cover types
-  # are listed for all sites, even if they are not present in buffer,
-  # write results into ith element of list 'Sites.class':
-  Sites.class[[i]] <- merge(class.ID, Result, all=TRUE, by.x="ID", by.y="class")
-}
-# Add labels for list elements
-names(Sites.class) <- Sites.sp@data$SiteName
+nlcd.sampled
 ```
+
+The tibble now contains two additional columns. Firstly, the `plot_id` (in the same order as the input points) and secondly, the `percantge_inside` of the sample plot within the landscape. In cases in which the sample location is right on the edge of the landscape, the sample plot could only be partly within the landscape. The value can also deviate from 100 % because the sample locations are not necessarily in the cell center and the actually clipped cells lead to a slightly smaller or larger sample area. A circle sample shape even increases this effect.
+
+It is also possible to get the clippings of the sample plots as raster. Therefore, just set `return_plots = TRUE`.
 
 ```{r}
-as.tibble(Sites.class[[2]])
+# sample some metrics within buffer around sample location and returning sample
+# plots as raster
+nlcd.sampled.plots <- landscapemetrics::sample_metrics(landscape = nlcd, 
+                                                       what = c("lsm_l_ta",
+                                                                "lsm_c_np",
+                                                                "lsm_c_pland",
+                                                                "lsm_c_ai"),
+                                                       shape = "square",
+                                                       points = Sites.sp, 
+                                                       size = 500, 
+                                                       return_plots = TRUE)
+
+nlcd.sampled.plots
 ```
+
+The result will be a nested tibble containing the plot_id, the metrics (as a list) and a raster with the clipped sample plot (as a list).
+
+```{r, fig.width=8, fig.height=5.5}
+# Show results for first four plots
+nlcd.sampled.plots$metrics[1:4]
+nlcd.sampled.plots$raster_sample_plots[1:4]
+
+par(mfrow = c(2,2))
+  plot(nlcd.sampled.plots$raster_sample_plots[[1]], 
+       main = paste(Sites.sp$SiteName[1]), 
+       col = rev(rainbow(9)))
+  plot(nlcd.sampled.plots$raster_sample_plots[[2]],
+       main = paste(Sites.sp$SiteName[2]),
+       col=rev(rainbow(9)))
+  plot(nlcd.sampled.plots$raster_sample_plots[[3]],
+        main = paste(Sites.sp$SiteName[3]), 
+       col=rev(rainbow(9)))
+  plot(nlcd.sampled.plots$raster_sample_plots[[4]],
+        main = paste(Sites.sp$SiteName[4]), 
+       col=rev(rainbow(9)))
+par(mfrow = c(1,1))
+```
+
 ### b) Extract landscape metric of choice for a single cover type (as vector)
-
-Now we can extract any variable of interest for any cover type of interest. Here we'll extract the percentage of evergreen forest within a 500 m radius around each site. 
-
+To extract a metrics you can just filter the resulting tibble and pull the `value`
+coloumn 
+ 
 ```{r}
-# Extract one variable, 'prop.landscape', for one cover type 42 (Evergreen Forest)
-# (this returns a vector with a single value for each site)
+# filter the results for class == 42 (forest) and pland (percentage) and pull
+# results as vector
+percentage.forest.500 <- dplyr::pull(dplyr::filter(nlcd.sampled, 
+                                                   class == 42, 
+                                                   metric == "pland"), value)
 
-PercentForest500 <- rep(NA, length(Sites.class))  # Create empty results vector
-for(i in 1:length(Sites.class))
-{
-  # For site i, select row with cover type '42' and column 'prop.landscape':
-  PercentForest500[i] <- Sites.class[[i]][class.ID$ID==42, "prop.landscape"]
-}
-
-# If there are any sites with no forest in buffer, set value to 0:
-PercentForest500[is.na(PercentForest500)] <- 0
-
-# Print results:
-PercentForest500
+percentage.forest.500
 ```
+
 ### c) Extract landscape metric of choice for all cover types (as data frame)
-
-To extract the landscape metric 'prop.landscape' for all cover types as a data.frame (one column per cover type), use this code. 
-
-We'll define column names combining 'Prop' for 'proportion of landscape', '500' to indicate the 500 m buffer radius, and the ID of each cover type.
+To extract the landscape metric 'prop.landscape' for all cover types as a tibble, 
+just filter the tibble again, but only use the `metric` as filter. 
 
 ```{r}
-# Create empty matrix for storing results:
-Prop.landscape <- matrix(data=NA, nrow=length(Sites.class), ncol=length(class.ID$ID))
+# filter for percentage of landscape
+percentage.forest.500.df <- dplyr::filter(nlcd.sampled,
+                                          metric == "pland")
 
-# Create row and column names:
-dimnames(Prop.landscape) <- list(names(Sites.class),
-                                 paste("Prop.500", class.ID$ID, sep="."))
-
-# For each site i, extract "prop.landscape" for all cover types
-# and write results into row i of Prop.landscape:
-for(i in 1:length(Sites.class))
-{
-  Prop.landscape[i,] <- Sites.class[[i]][,"prop.landscape"]
-}
-
-# Set any missing values to 0:
-Prop.landscape[is.na(Prop.landscape)] <- 0
-
-# Convert matrix to data frame:
-Prop.landscape <- as.data.frame(Prop.landscape)
-as.tibble(Prop.landscape)
+percentage.forest.500.df
 ```
 
-The percent cover of all cover types should add up to 100% (i.e., 1) for each site. We can check this with the function 'apply'. The argument 'MARGIN' specifies whether we want to apply the function FUN to each row (MARGIN=1) or each column (MARGIN=2). 
-
-Note: This function expects the object X to be a matrix or array - taking a row total only makes sense if all columns contain the same type of data, in the same units. It still does the calculation here even though we just converted 'Prop.landscape' to a data frame. Always double check whether what you ask R to calculate makes sense.
+The percent cover of all cover types should add up to ~ 100% (i.e., 1) for each 
+site. We can check this with the function `summarize`. First, we need to group 
+the data using the `plot_id` and than sum all percentages.
 
 ```{r}
-apply(X=Prop.landscape, MARGIN=1, FUN=sum)
+# group by plot_id and sum all percentages
+pland.sum <- dplyr::summarize(dplyr::group_by(percentage.forest.500.df, by = plot_id), 
+                 sum_pland = sum(value))
+
+pland.sum
 ```
 
 ### d) Extract all landscape metrics for a single cover type (as data frame)
-
-To extract all landscape metrics for a single cover type, we need to modify the code like this. Here we add the class ID '42' to all variable names to indicate that these are quantified for cover type '42' (evergreen forest)
-
-```{r}
-# Create empty matrix for storing results:
-Forest.class <- matrix(data=NA, nrow=length(Sites.class), 
-                       ncol=ncol(Sites.class[[1]]))
-
-# Create row and column names:
-dimnames(Forest.class) <- list(names(Sites.class),
-                                 paste("42",names(Sites.class[[1]]), sep="."))
-
-# For each site i, extract all landscape metrics for cover type 42
-# and write results into row i of Forest.class:
-for(i in 1:length(Sites.class))
-{
-  Forest.class[i,] <- unlist(Sites.class[[i]][class.ID$ID==42,])
-}
-
-# Convert matrix to data frame:
-Forest.class <- as.data.frame(Forest.class)
-as.tibble(Forest.class)
-```
-
-
-### e) Append to site data set
+Just filter for `class == 42` and add the sites names as coloumn to the resulting 
+tibble.
 
 ```{r}
-Sites.sp@data <- data.frame(Sites.sp@data, Prop.landscape,
-                                Forest.class) 
+# filter for class == 42 (forest)
+forest.500.df <- dplyr::filter(nlcd.sampled,
+                               class == 42)
+
+# add site names to result
+forest.500.df$site_name <- Sites.sp$SiteName
+
+forest.500.df
 ```
 
 Done!
