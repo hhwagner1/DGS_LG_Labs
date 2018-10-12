@@ -66,11 +66,11 @@ Package 'tmaptools' not automatically installed with 'LandGenCourse':
 if(!require(tmaptools)) install.packages("tmaptools")
 ```
 
-You will need the development version of `landscapemetrics v.0.2`.
+You will need the development version of `landscapemetrics v0.3`.
 
 ```{r}
 # CRAN update on its way at the moment
-devtools::install_github("r-spatialecology/landscapemetrics", ref = "stable")
+devtools::install_github("r-spatialecology/landscapemetrics")
 ```
 
 ## 2. Import site data from .csv file
@@ -251,13 +251,20 @@ All functions in landscapemetrics start with `lsm_` (for landscapemetrics). The 
 
 The result of all landscape metrics functions is always an identical structured tibble. The first coloumn is the layer id (only interesting for e.g. a `RasterStack`). The second coloumn specifies the level ('patch', 'class' or 'landscape'). The third coloumn is the class id (`NA` on landscape level). The third coloumn is the patch id (`NA` on class- and landscape level). The fourth coloumn is the abbreviation of the metric and the last coloumn is the value.
 
+To check if a raster is suitable for `landscapemetrics` run the check_lanscape() function first. It checks if the units are in meters, the classes are coded as integer values and if the values are (most likely) discrete classes.
+
+```{r}
+nlcd <- raster(RasterMaps, layer="nlcd")
+
+landscapemetrics::check_landscape(nlcd)
+
+```
+
 ### a) Calculate patch-, class- and landscape level landscape metrics 
 
 To calculate all available metrics on a level, you can just use the wrapper `calculate_lsm` and specify e.g. for the patch-level `what = "patch"`. The same is possible for class- and landscape level. However, because quite a lot of metrics are available, this is rather slow for large rasters. 
 
 ```{r}
-nlcd <- raster(RasterMaps, layer="nlcd")
-
 # calculate all patch-level metrics using wrapper
 nlcd.patch <- landscapemetrics::calculate_lsm(nlcd, what = "patch")
 # nlcd.class <- landscapemetrics::calculate_metrics(nlcd, what = "class")
