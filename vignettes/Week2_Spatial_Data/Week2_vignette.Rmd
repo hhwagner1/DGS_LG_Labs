@@ -55,7 +55,6 @@ require(sp)
 require(raster)
 require(GeNetIt)
 require(landscapemetrics) # for landscape metrics
-require(SDMTools) # for landscape metrics
 require(tibble)
 require(dplyr) # should already be imported by landscapemetrics
 ```
@@ -66,10 +65,9 @@ Package 'tmaptools' not automatically installed with 'LandGenCourse':
 if(!require(tmaptools)) install.packages("tmaptools")
 ```
 
-You will need the development version of `landscapemetrics v0.3`.
+To use all the newest features, you will need the development version of `landscapemetrics v0.3`.
 
 ```{r}
-# CRAN update on its way at the moment
 devtools::install_github("r-spatialecology/landscapemetrics")
 ```
 
@@ -247,76 +245,97 @@ We are going to use the package [`landscapemetrics`](https://r-spatialecology.gi
 
 There are three different levels for landscape metrics. Firstly, metrics can be calculated for each single patch (neighbouring cells of the same class). Secondly, metrics can be calculated for a certain class and lastly for the whole landscape. All these levels are implemented and easily accessible in `landscapemetrics`. 
 
-All functions in landscapemetrics start with `lsm_` (for landscapemetrics). The second part of the name specifies the level (patch - `p`, class - `c` or landscape - `l`). The last part of the function name is the abbreviation of the corresponding metric (e.g. `enn` for the Euclidean nearest-neighbor distance). For all available metrics and more information about them see either the helpfile(s) or [here](https://r-spatialecology.github.io/landscapemetrics/reference/index.html).
-
 The result of all landscape metrics functions is always an identical structured tibble. The first coloumn is the layer id (only interesting for e.g. a `RasterStack`). The second coloumn specifies the level ('patch', 'class' or 'landscape'). The third coloumn is the class id (`NA` on landscape level). The third coloumn is the patch id (`NA` on class- and landscape level). The fourth coloumn is the abbreviation of the metric and the last coloumn is the value.
+
+All functions in landscapemetrics start with `lsm_` (for landscapemetrics). The second part of the name specifies the level (patch - `p`, class - `c` or landscape - `l`). The last part of the function name is the abbreviation of the corresponding metric (e.g. `enn` for the Euclidean nearest-neighbor distance). For all available metrics and more information about them see either the helpfile(s) or [here](https://r-spatialecology.github.io/landscapemetrics/reference/index.html). Additionally, you can use the `list_lsm()` function to show all metrics filtered by level, type or metric name. 
+
+```{r}
+landscapemetrics::list_lsm(level = "landscape", type = "diversity metric")
+
+landscapemetrics::list_lsm(metric = "area")
+
+landscapemetrics::list_lsm(level = c("class", "landscape"), type = "aggregation metric", 
+                           simplify = TRUE)
+
+``` 
 
 To check if a raster is suitable for `landscapemetrics` run the check_lanscape() function first. It checks if the units are in meters, the classes are coded as integer values and if the values are (most likely) discrete classes.
 
 ```{r}
-nlcd <- raster(RasterMaps, layer="nlcd")
+nlcd <- raster(RasterMaps, layer = "nlcd")
 
 landscapemetrics::check_landscape(nlcd)
-
 ```
 
 ### a) Calculate patch-, class- and landscape level landscape metrics 
 
-To calculate all available metrics on a level, you can just use the wrapper `calculate_lsm` and specify e.g. for the patch-level `what = "patch"`. The same is possible for class- and landscape level. However, because quite a lot of metrics are available, this is rather slow for large rasters. 
+To calculate a single metric, just use the corresponding function. 
 
 ```{r}
-# calculate all patch-level metrics using wrapper
-nlcd.patch <- landscapemetrics::calculate_lsm(nlcd, what = "patch")
-# nlcd.class <- landscapemetrics::calculate_metrics(nlcd, what = "class")
-# nlcd.landscape <- landscapemetrics::calculate_metrics(nlcd, what = "landscape")
+# calculate percentage of landscape of class
+percentage_class <- lsm_c_pland(landscape = nlcd)
 
-nlcd.patch
-# nlcd.class
-# nlcd.landscape
-
-# show abbreviation of all calculated metrics
-unique(nlcd.patch$metric)
-# unique(nlcd.class$metric) 
-# unique(nlcd.landscape$metric) 
+percentage_class
 ```
 
-Alternatively, you can either specify the desired metrics by using the `what` argument or  rowbind the results of the single `lsm_` functions (be aware that the order might be slightly different). Because the tibble is always structured identical, you can easily mix different levels.
+Because the resulting tibble is type stable, you can easily rowbind different metrics (even of different levels). 
 
 ```{r}
-# use the wrapper to calculate some metrics
-nlcd.subset.a <- landscapemetrics::calculate_lsm(nlcd, 
-                                                 what = c("lsm_c_pladj", 
-                                                          "lsm_l_pr", 
-                                                          "lsm_l_shdi"))
-
-# rowbind results for some metrics
-nlcd.subset.b <- rbind(
+# calculate three different landscape metrics and rowbind the result to one result tibble
+metrics <- rbind(
   landscapemetrics::lsm_c_pladj(nlcd), 
   landscapemetrics::lsm_l_pr(nlcd),
   landscapemetrics::lsm_l_shdi(nlcd)
-)
+  )
 
-nlcd.subset.a
-nlcd.subset.b
+metrics
+```
+
+To calculate a larger set of landscape metrics, you can just use the wrapper `calculate_lsm()`. The arguments are similar to `list_lsm()`, e.g. you can specify the level or the type of metrics to calculate. Alternatively, you can also provide a vector with the function names of metrics to calculate to the `what` argument. However, watch out, for large raster and many metrics, this can be rather slow. 
+
+```{r}
+# calculate all patch-level metrics using wrapper
+nlcd.patch <- landscapemetrics::calculate_lsm(landscape = nlcd, 
+                                              level = "patch")
+
+nlcd.patch
+
+# show abbreviation of all calculated metrics
+unique(nlcd.patch$metric)
+
+# calculate all aggregation metrics on landscape level
+nlcd.landscape.aggr <- landscapemetrics::calculate_lsm(landscape = nlcd, 
+                                                       level = "landscape", 
+                                                       type = "aggregation metric")
+
+nlcd.landscape.aggr 
+
+# calculate specific metrics
+nlcd.subset <- landscapemetrics::calculate_lsm(landscape = nlcd, 
+                                               what = c("lsm_c_pladj", 
+                                                        "lsm_l_pr", 
+                                                        "lsm_l_shdi"))
+
+nlcd.subset
 ```
 
 Because the metric names are only abbreviated, there is also a way to include the full name in the results. For the wrapper, just set `full_name = TRUE`. For the rowbinded tibble, you can use the provided tibble `lsm_abbreviations_names` that comes with the package and use e.g. `left_join()`. 
 
 ```{r}
 # add full metrics name to result
-nlcd.subset.a.full <- landscapemetrics::calculate_lsm(nlcd, 
-                                                      what = c("lsm_c_pladj", 
-                                                               "lsm_l_pr", 
-                                                               "lsm_l_shdi"), 
-                                                      full_name = TRUE)
+nlcd.subset.full <- landscapemetrics::calculate_lsm(nlcd, 
+                                                    what = c("lsm_c_pladj", 
+                                                             "lsm_l_pr", 
+                                                             "lsm_l_shdi"), 
+                                                    full_name = TRUE)
 
 # add full metrics name to result using left_join
-# nlcd.subset.b.full <- dplyr::left_join(x = nlcd.subset.b, 
-#                                        y = lsm_abbreviations_names, 
-#                                        by = "metric")
+nlcd.subset.full.b <- dplyr::left_join(x = nlcd.subset,
+                                       y = lsm_abbreviations_names,
+                                       by = c("metric", "level"))
 
-nlcd.subset.a.full
-# nlcd.subset.b.full
+nlcd.subset.full
+nlcd.subset.full.b
 ``` 
 
 # b) Calculate patch-level landscape metrics for 'Evergreen Forest'
@@ -337,24 +356,32 @@ cc.nlcd <- landscapemetrics::get_patches(nlcd, directions = 8)
 # show name of each class
 sapply(cc.nlcd, function(x) names(x)) 
 
-# the first list entry is class forest
-cc.forest <- cc.nlcd[[4]]
-# cc.forest <- landscapemetrics::get_patches(nlcd, what = 42) # watch out: result is list with one entry
+# the fourth list entry is class forest
+cc.forest.a <- cc.nlcd[[4]]
+cc.forest.b <- landscapemetrics::get_patches(nlcd, class = 42) # watch out: result is list with one entry
 
+cc.forest.a
+cc.forest.b
 ```
 
-To plot the patches you can use the `show_patches` function.
+To plot the patches you can use the `show_patches()` function.
 
 ```{r}
-  # show_patches(nlcd, what = "all", labels = FALSE)
-  show_patches(nlcd, what = 42, labels = FALSE)
+  # show_patches(nlcd, class = "all", labels = FALSE)
+  show_patches(landscape = nlcd, class = 42, labels = FALSE)
 ```
 
-It is also possible to visualize only the core area of each patch. The core area are all cells that are further away from the edge of each patch than a specified edge depth (e.g. 5 cells). 
+It is also possible to visualize only the core area of each patch using `show_cores()`. The core area are all cells that are further away from the edge of each patch than a specified edge depth (e.g. 5 cells). 
 
 ```{r}
-  show_cores(nlcd, what = 42, edge_depth = 5,  labels = FALSE)
+  show_cores(landscape = nlcd, class = 42, edge_depth = 5,  labels = FALSE)
 ```
+
+Lastly, you can plot the map and fill each patch with the corresponding metric value, e.g. the patch size, with the help of `show_lsm()` 
+
+```{r}
+show_lsm(landscape = nlcd, class = 42, what = "lsm_p_area", labels = FALSE)
+``` 
 
 Let's add forest patch size to the 'Sites.sp' data. To extract landscape metrics of a patch in which sample points are located in, use `extract_lsm()`. Which metrics are extracted can be specified by the `what` argument (similar to `calculate_lsm()`). However, only patch level metrics are available.
 
@@ -431,13 +458,13 @@ par(mfrow = c(2,2))
        col = rev(rainbow(9)))
   plot(nlcd.sampled.plots$raster_sample_plots[[2]],
        main = paste(Sites.sp$SiteName[2]),
-       col=rev(rainbow(9)))
+       col = rev(rainbow(9)))
   plot(nlcd.sampled.plots$raster_sample_plots[[3]],
         main = paste(Sites.sp$SiteName[3]), 
-       col=rev(rainbow(9)))
+       col = rev(rainbow(9)))
   plot(nlcd.sampled.plots$raster_sample_plots[[4]],
         main = paste(Sites.sp$SiteName[4]), 
-       col=rev(rainbow(9)))
+       col = rev(rainbow(9)))
 par(mfrow = c(1,1))
 ```
 
@@ -472,7 +499,7 @@ The percent cover of all cover types should add up to ~ 100% (i.e., 1) for each 
 ```{r}
 # group by plot_id and sum all percentages
 pland.sum <- dplyr::summarize(dplyr::group_by(percentage.forest.500.df, by = plot_id), 
-                 sum_pland = sum(value))
+                              sum_pland = sum(value))
 
 pland.sum
 ```
