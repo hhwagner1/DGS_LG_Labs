@@ -39,13 +39,14 @@ All required packages should have been installed already when you installed 'Lan
 Note: the function 'library' will always load the package, even if it is already loaded, whereas 'require' will only load it if it is not yet loaded. Either will work.
 
 ```{r message=FALSE, warning=TRUE}
-require(LandGenCourse)
+library(LandGenCourse)
 #require(here)
 #require(spdep)
 #require(nlme)
 #require(lattice)
 #require(MuMIn)
-require(ggplot2)
+library(ggplot2)
+library(ggmap)
 source(system.file("extdata", "panel.cor.r", 
                             package = "LandGenCourse"))
 ```
@@ -77,14 +78,57 @@ Allelic richness 'A' was not calculate for populations with < 5 individuals. Her
 
 ### b) Create a map
 
-Note: the coordinates 'x' and 'y' in Dianthus@coords are Gauss-Krueger projection GK4 as defined in Dianthus@proj4string. In addition, 'Longitude' and 'Latitude' are available as variables in Dianthus@data. This is useful for functions like 'qmplot' that expect latlon coordinates. 
+The functions in package 'ggmap' expect the projection to be Longitude/Latitude. We could start by transforming the projection of the Dianthus dataset:
 
 ```{r}
-ggmap::qmplot(x =  Longitude, y = Latitude, data = Dianthus@data,
-              source = "google", maptype = "terrain", zoom = 12)
+Dianthus.longlat <- sp::spTransform(Dianthus, 
+                       CRSobj = tmaptools::get_proj4("longlat")$proj4string)
+
+
+make_bbox(lon = Longitude, lat = Latitude, data = Dianthus@data, f = 0.2)
+
 ```
 
-As you can see from the map, most sites lie on the steep slopes between an upper and a lower Jurassic plateau. A few sites, south of road "S12216", lie at the forest edge on the upper plateau, typically in areas where the soil is too shallow to allow crop farming. With in the study area, all known sites were sampled. Additional sites are expected to be found mainly in the valley system in the Southwest. 
+Here, however, we use a shortcut as the 'Dianthus@data' dataframe already contains variables with Longitude and Latitude. We use these to define the bounding box for the map, extending the map extent by 20% ('f=0.2'). 
+
+```{r}
+bbox <- make_bbox(lon = Longitude, lat = Latitude, data = Dianthus@data, f = 0.2)
+```
+
+Now we can obtain a stamen map for the study area from the internet and add points for the sampling sites. Here we use a terrain map. 
+
+Note: here we use the 'terrain' map from source 'stamen', which is freely available. Starting in mid 2018, accessing maps from Google with 'source = google' requires an API key.
+
+```{r}
+ggmap(get_stamenmap(bbox, maptype = "terrain", zoom=12)) + 
+  geom_point(aes(x =  Longitude, y = Latitude), data = Dianthus.longlat@data, 
+             colour = "black", size = 2)
+```
+
+As you can see from the map, most sites lie on the steep slopes between an upper and a lower Jurassic plateau. A few sites lie at the forest edge on the upper plateau, typically in areas where the soil is too shallow to allow crop farming. With in the study area, all known sites were sampled. Additional sites are expected to be found mainly in the valley system in the Southwest.
+
+There are three types of stamen maps: terrain, toner (black and white), and watercolor. Terrain and toner maps have three components each (background, labels, lines), which can be downloaded individually if needed. Hence, the argument 'maptype' has the following options:
+
+- terrain
+- terrain-background
+- terrain-labels
+- terrain-lines
+- toner
+- toner-2010
+- toner-background
+- toner-hybrid
+- toner-labels
+- toner-lines
+- toner-lite
+- watercolor
+
+Let's see what a 'toner' map would look like:
+
+```{r}
+ggmap::ggmap(get_stamenmap(bbox, maptype = "toner", zoom=12)) + 
+  geom_point(aes(x =  Longitude, y = Latitude), data = Dianthus.longlat@data, 
+             colour = "black", size = 2)
+```
 
 ### c) Explore correlations
 
@@ -650,15 +694,15 @@ summary( rv_res$p_vc )
 
 Also, a larger proportion of sites nows has p-values < 0.05.
 
-Let's plot the results onto a gray-scale ('mapcolor = "bw"), Google terrain map ('source = "google", maptype = "terrain") to facilitate interpretation. Note: here the zoom level 'zoom = 12' covers the entire study area, whereas the default value would actually cut off a large number of sites.
+Let's plot the results onto a gray-scale, stamen 'terrain map to facilitate interpretation. Note: here the zoom level 'zoom = 12' covers the entire study area, whereas the default value would actually cut off a large number of sites. We use the argument 'force=TRUE' to force the map to be downloaded again (otherwise the argument 'color="bw"' may not have an effect if we already downloaded the terrain map in color).
 
 ```{r fig.height=6, fig.width=7}
 Result <- data.frame(Dianthus.df, b=rv_res$b_vc, p=rv_res$p_vc, resid=rv_res$resid)
 names(Result)
 
-ggmap::qmplot(x=Longitude, y=Latitude, data=Result,
-              source = "google", maptype = "terrain", zoom = 12,
-              col=p.V1 < 0.05, size=b.V1, mapcolor = "bw")
+ggmap::ggmap(get_stamenmap(bbox, maptype = "terrain", color="bw", force=TRUE, zoom=12)) + 
+   geom_point(aes(x =  Longitude, y = Latitude, col=p.V1 < 0.05, size=b.V1), data = Result) 
+              
 ```
 
 This is a very different map of results!
