@@ -263,7 +263,7 @@ Working directory confusion: If you are working within an R project folder, then
 Frogs.gstudio <- read_population(path=system.file("extdata", "ralu.loci.csv", 
                                                   package = "LandGenCourse"), 
                    type="separated", locus.columns=c(3:10), 
-                   phased=NULL, sep=",", header=TRUE)
+                   phased=FALSE, sep=",", header=TRUE)
 ```
 
 ### c) Check imported data
