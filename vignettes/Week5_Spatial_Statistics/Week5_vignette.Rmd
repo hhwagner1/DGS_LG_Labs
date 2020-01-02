@@ -39,9 +39,10 @@ All required packages should have been installed already when you installed 'Lan
 ```{r message=FALSE, warning=TRUE}
 #require(adegenet)
 #require(ade4)
-require(LandGenCourse)
+library(LandGenCourse)
 #require(tibble)
-require(EcoGenetics)
+library(EcoGenetics)
+library(methods)
 #require(gstudio)
 #require(hierfstat)
 #require(PopGenReport)

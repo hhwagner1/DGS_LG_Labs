@@ -46,8 +46,9 @@ Lamy, T., Pointier, J. P., Jarne, P. and David, P. (2012), Testing metapopulatio
 All required packages should have been installed already when you installed 'LandGenCourse'.
 
 ```{r message=FALSE, warning=TRUE}
-require(LandGenCourse)
-require(EcoGenetics)
+library(LandGenCourse)
+library(EcoGenetics)
+library(methods)
 #require(tibble)
 #require(poppr)
 #require(ade4)

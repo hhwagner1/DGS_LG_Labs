@@ -44,6 +44,7 @@ Most required packages should have been installed already when you installed 'La
 library(LandGenCourse)
 library(lme4)
 #require(EcoGenetics)
+library(methods)
 library(tibble)
 #require(lattice)
 #require(MuMIn)
