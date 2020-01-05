@@ -1,0 +1,330 @@
+---
+title: "Week 5: Metapopulation Genetics"
+author: 
+- "Nusha Keyghobadi"
+- "Thomas Lamy"
+- "Helene Wagner"
+date: "`r Sys.Date()`"
+show_toc: true
+output:
+  knitr:::html_vignette:
+    toc: yes
+    fig_width: 4 
+    fig_height: 3.5
+vignette: >
+  %\VignetteIndexEntry{Week 5: Metapopulation Genetics}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## 1. Overview of Worked Example
+
+### a) Goals 
+
+This worked example shows how to:
+
+- Estimate temporal Fst (between years for same site)
+- plotting IBD
+- Correlation site-specific Fst with patch connectivity and population size
+- Test for population genetic structure with hierarchical AMOVA
+
+The Bonus Material provides guidance how to calculate several metrics outside of R:
+
+- Estimate population-level Fst (GESTE, FRENA)
+- Estimate effective population size (Ne) and migration rate (m)
+
+### b) Data set 
+
+Lamy et al. (2012) sampled the freshwater snail *Drepanotrema depressissimum* in a fragmented landscape of tropical ponds on the island of Guadeloupe in the French West Indies. They used a spatially and temporally stratified sampling design with a total of 25 sites, where 12 sites formed four well-separated clusters of three neighbouring sites to study spatial variability, and 12 sites spread across the island were sampled in multiple years to study temporal variability. For each site and year, 22 - 34 individuals were genotyped at ten microsatellite loci. The species is diploid, hermaphroditic, and outcrossed.  
+
+- **dd.ecogen**: The dataset 'dd.ecogen' with genetic data for 1270 snails from 42 populations is included in package 'LandGenCourse'. To load it, type: data(dd.ecogen). 
+
+- **dd.site**: Population-level data from Tables 2 - 5 of Lamy et al. (2012) are available in dataset 'dd.site' (with 25 variables) in package 'LandGenCourse'. To load it, type: data(dd.site). 
+
+### c) Required R libraries
+
+All required packages should have been installed already when you installed 'LandGenCourse'.
+
+```{r message=FALSE, warning=TRUE}
+require(LandGenCourse)
+require(EcoGenetics)
+require(ade4)
+require(adegenet)
+require(dplyr)
+require(hierfstat)
+```
+
+### a) Import data
+
+```{r}
+data(dd.ecogen, package = "LandGenCourse")
+data(dd.site, package = "LandGenCourse")   
+```
+
+## Determinants of genetic differentiation across the island (BONUS MATERIAL OR LATER LAB?)
+
+
+### d) Alternative analysis using AMOVA
+This takes a little longer!
+```{r}
+dd.gstudio <- EcoGenetics::ecogen2gstudio(dd.ecogen)
+dd.gstudio <- dplyr::left_join(dd.gstudio, dd.site, by="SiteID")
+dd.gstudio.Spatial <- dd.gstudio[dd.gstudio$Spatial==TRUE,]
+D <- gstudio::dist_amova(dd.gstudio.Spatial)
+vegan::adonis(gstudio::dist_amova(dd.gstudio.Spatial) ~ NLT + C + SiteID, 
+              data=dd.gstudio.Spatial, permutations=499)
+
+```
+
+
+
+
+
+### Site-level differentiation: LCBD
+
+```{r}
+source('~/Desktop/R_GitHub_Projects/DGS_LG_Labs/vignettes/Week5_Habitat_Connectivity/Genetic_LCBDs/genetic.LCBD.R')
+
+## compute genetic LCBD based on genetic Hellinger distance
+res.LCBD <- genetic.LCBD(Snail.genind, D.opt=2, perm.opt=3, nperm=999) # 1 min
+# perm.opt = 3  # Population-based: Permute genes separately across populations
+res.LCBD$BDtotal
+# [1] 0.1971397
+res.LCBD$SStotal
+# [1] 4.731352
+res.LCBD$LCBD
+
+cor(Snail.genpop@other$Table4$FST.GESTE, res.LCBD$LCBD)
+```
+
+### Site-level differentiation: iterate each site against all other sites
+
+```{r}
+ecogen2hierfstat(Snail.ecogen, pop=Snail.ecogen@S$pop)
+hierfstat::basic.stats(hierfstat::genind2hierfstat(Snail.genind, pop=Snail.genind@pop))
+Total.stats <- hierfstat::basic.stats(hierfstat::genind2hierfstat(Snail.genind, 
+                                                                  pop=Snail.genind@pop))$overall
+
+Site.stats <- matrix(NA, nlevels(Snail.genind@pop), length(Total.stats), 
+                     dimnames=list(levels(Snail.genind@pop), names(Total.stats)))
+for(i in 1:nlevels(Snail.genind@pop))
+{
+  sub <- as.character(Snail.genind@pop)
+  sub[sub != levels(Snail.genind@pop)[i]] <- "Other"
+  Site.stats[i,] <- hierfstat::basic.stats(hierfstat::genind2hierfstat(Snail.genind, pop=sub))$overall
+}
+Site.stats <- data.frame(Site.stats)
+
+cor(res.LCBD$LCBD, Site.stats)
+cor(Snail.genpop@other$Table4$FST.GESTE, Site.stats)
+```
+
+### Temporal differentiation within sites (temporal Fst)
+
+```{r}
+Snail.bySite.genind <- seppop(Snail.all.genind, Snail.all.genind@strata$SITE)
+nYears <- sapply(Snail.bySite.genind, function(ls) length(table(as.character(ls@strata$YEAR))))
+
+Temporal.stats <- matrix(NA, length(Snail.bySite.genind), length(Total.stats), 
+                     dimnames=list(names(Snail.bySite.genind), names(Total.stats)))
+Temporal.Fst.max <- rep(NA, length(Snail.bySite.genind))
+names(Temporal.Fst.max) <- names(Snail.bySite.genind)
+
+for(i in 1:length(Snail.bySite.genind))
+{
+  if(nYears[i] > 1)
+  {
+    Temporal.stats[i,] <- hierfstat::basic.stats(hierfstat::genind2hierfstat(Snail.bySite.genind[[i]],                                      pop=as.character(Snail.bySite.genind[[i]]@strata$YEAR)))$overall
+    Temporal.Fst.max[i] <- max(hierfstat::pairwise.fst(Snail.bySite.genind[[i]], 
+                              pop = as.character(Snail.bySite.genind[[i]]@strata$YEAR), 
+                              res.type = "dist"))
+  }
+}
+Temporal.stats <- data.frame(Temporal.stats)
+Temporal.stats
+Temporal.Fst.max
+plot(Temporal.Fst.max, Temporal.stats$Fst)
+cbind(nYears, Temporal.Fst.max, Temporal.stats$Fst)
+
+# Check 'PICO':
+hierfstat::pairwise.fst(Snail.bySite.genind$PICO, 
+                              pop = as.character(Snail.bySite.genind$PICO@strata$YEAR), 
+                              res.type = "matrix")
+hierfstat::basic.stats(hierfstat::genind2hierfstat(Snail.bySite.genind$PICO,                                      pop=as.character(Snail.bySite.genind$PICO@strata$YEAR)))$overall
+
+
+```
+
+### Temporal differentiation within sites (AMOVA)
+
+```{r}
+Temporal.amova.Rsquared <- Temporal.amova.pvalue <- rep(NA, length(Snail.bySite.genind))
+names(Temporal.amova.Rsquared) <- names(Temporal.amova.pvalue) <- 
+  names(Snail.bySite.genind)
+for(i in 1:length(Snail.bySite.genind))
+{
+  if(nYears[i] > 1)
+  {
+    tmp <- Snail.all.gstudio[Snail.all.gstudio$SITE== names(Snail.bySite.genind)[i], ]
+    res <- vegan::adonis(dist_amova(tmp) ~ as.character(tmp$YEAR))
+    Temporal.amova.Rsquared[i] <- res$aov.tab$'R2'[1]
+    Temporal.amova.pvalue[i] <- res$aov.tab$'Pr(>F)'[1]
+  }
+}
+
+Fst.temp <- data.frame(SITE=names(nYears), nYears=nYears, Fst.max=Temporal.Fst.max, 
+                       Fst=Temporal.stats$Fst, Amova.R2=Temporal.amova.Rsquared, 
+                       Amova.pvalue=Temporal.amova.pvalue)
+
+
+Fst.temp <- dplyr::left_join(Fst.temp, Table4)
+row.names(Fst.temp) <- Fst.temp$SITE
+
+cor(Fst.temp[,c("Fst.max", "Fst", "Amova.R2", "Fst.temp")], use="complete")
+plot(Fst.temp[,c("Fst.max", "Fst", "Amova.R2", "Fst.temp")])
+```
+
+### Spatial and environmental predictors of differentiation among sites (AMOVA)
+
+
+```{r}
+# Select sites for spatial analysis
+Snail.spatial.gstudio <-merge(Snail.all.gstudio, Table4)
+
+#D <- as.dist(dist_amova(Snail.spatial.gstudio))
+#is.euclid(D)
+#is.euclid(sqrt(D))
+
+mod.env.mar <- vegan::adonis2(dist_amova(Snail.spatial.gstudio) ~ North.WGS84 + 
+                              West.WGS84 + Type + Size + V + C + Stab, 
+                              data=Snail.spatial.gstudio, by="margin")
+mod.env.mar
+
+mod.nospace.mar <- vegan::adonis2(dist_amova(Snail.spatial.gstudio) ~  
+                              Type + Size + V + C + Stab, 
+                              data=Snail.spatial.gstudio, by="margin")
+mod.nospace.mar
+
+mode.env.site.seq <- vegan::adonis(dist_amova(Snail.spatial.gstudio) ~ North.WGS84 + 
+                               West.WGS84 + Type + Size + V + C + Stab + SITE, 
+                               data=Snail.spatial.gstudio)
+mode.env.site.seq
+```
+
+### Differentiation within vs. among clusters
+
+```{r}
+Snail.cluster.gstudio <- Snail.spatial.gstudio[!is.na(Snail.spatial.gstudio$Cluster),]
+table(Snail.cluster.gstudio$SITE, Snail.cluster.gstudio$Cluster)
+
+vegan::adonis(dist_amova(Snail.cluster.gstudio) ~ Cluster/SITE, 
+              data=Snail.cluster.gstudio)
+
+```
+
+## Genetic diversity
+
+### Which diversity aspects are affected by pond size and connectivity?
+
+```{r}
+
+cor(Snail.all.genpop@other$Table2[,c("RA", "He", "f", "s", "FST.GESTE")],
+    use="pairwise.complete")
+
+
+
+# Allelic richness (rarefied, base = 14):
+mod.RA <- lm(RA ~ Size + C, data=Snail.all.genpop@other$Table2)
+summary(mod.RA)
+car::Anova(mod.RA)
+
+# Gene diversity (expected heterozygosity):
+mod.He <- lm(He ~ Size + C, data=Snail.all.genpop@other$Table2)
+summary(mod.He)
+car::Anova(mod.He)
+
+# Inbreeding coefficient:
+mod.f <- lm(f ~ Size + C, data=Snail.all.genpop@other$Table2)
+summary(mod.f)
+car::Anova(mod.f)
+
+# Selfing rate:
+mod.s <- lm(s ~ Size + C, data=Snail.all.genpop@other$Table2)
+summary(mod.s)
+car::Anova(mod.s)
+
+```
+### Long-term population size and apparent age of population
+
+```{r}
+# Allelic richness (rarefied, base = 14):
+mod.RA <- lm(RA ~ Size + C + APA + NLT, data=Snail.all.genpop@other$Table2)
+summary(mod.RA)
+car::Anova(mod.RA)
+
+mod.RA <- lm(RA ~ C + NLT, data=Snail.all.genpop@other$Table2)
+summary(mod.RA)
+car::Anova(mod.RA)
+
+# Gene diversity (expected heterozygosity):
+mod.He <- lm(He ~ Size + C + APA + NLT, data=Snail.all.genpop@other$Table2)
+summary(mod.He)
+car::Anova(mod.He)
+
+mod.He <- lm(He ~ C + NLT, data=Snail.all.genpop@other$Table2)
+summary(mod.He)
+car::Anova(mod.He)
+
+```
+### Geography: Connectivity vs. Latitude, Longitude
+
+```{r}
+# Allelic richness (rarefied, base = 14):
+
+mod.RA <- lm(RA ~ Size + C + APA + NLT + Latitude + Longitude, data=Snail.all.genpop@other$Table2)
+summary(mod.RA)
+car::Anova(mod.RA)
+cor(mod.RA$model)
+
+# Gene diversity (expected heterozygosity):
+mod.He <- lm(He ~ Size + C + APA + NLT + Latitude + Longitude, data=Snail.all.genpop@other$Table2)
+summary(mod.He)
+car::Anova(mod.He)
+cor(mod.He$model)
+
+mod.He <- lm(He ~ C + NLT + Latitude + Longitude, data=Snail.all.genpop@other$Table2)
+summary(mod.He)
+car::Anova(mod.He)
+
+
+# Site-level Fst (GESTE):
+mod.FST <- lm(FST.GESTE ~ Size + C + APA + NLT + Latitude + Longitude, data=Snail.all.genpop@other$Table2)
+summary(mod.FST)
+car::Anova(mod.FST)
+cor(mod.He$model)
+
+mod.FST <- lm(FST.GESTE ~ C + NLT , data=Snail.all.genpop@other$Table2)
+summary(mod.FST)
+car::Anova(mod.FST)
+
+
+# Inbreeding coefficient:
+mod.f <- lm(f ~ Size + C + APA + NLT + Latitude + Longitude, data=Snail.all.genpop@other$Table2)
+summary(mod.f)
+car::Anova(mod.f)
+cor(mod.f$model)
+
+# Selfing rate: some associaiton with APA, C
+mod.s <- lm(s ~ Size + C + APA + NLT + Latitude + Longitude, data=Snail.all.genpop@other$Table2)
+summary(mod.s)
+car::Anova(mod.s)
+cor(mod.s$model)
+
+mod.s <- lm(s ~ APA + C, data=Snail.all.genpop@other$Table2)
+summary(mod.s)
+```
+
+```{r message=FALSE, warning=TRUE, include=FALSE}
+#detach("package:MetaLandSim", unload=TRUE)
+#detach("package:igraph", unload=TRUE)
+```
