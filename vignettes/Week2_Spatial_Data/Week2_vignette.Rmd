@@ -1,6 +1,6 @@
 ---
 title: "Week 2: Spatial Data"
-author: "Helene Wagner"
+author: "Helene Wagner and Max Hesselbarth"
 date: "`r Sys.Date()`"
 show_toc: true
 output:
@@ -17,9 +17,7 @@ editor_options:
 ---
 ## 1. Overview of Worked Example
 
-Author: Helene Wagner and Max Hesselbarth
-
-This code builds on data and code from the `GeNetIt` package by Jeff Evans and Melanie Murphy.
+This code builds on data and code from the `GeNetIt` package by Jeff Evans and Melanie Murphy. Landscape metrics will be calculated with the `landscapemetrics` package described in: Hesselbarth et al. (2019), Ecography 42: 1648-1657.
 
 ### a) Goals 
 
@@ -576,6 +574,6 @@ Note: check this week's bonus material if you want to see how to use the new 'sf
 
 The following code detaches all packages except for some basic ones:
 
-```{r message=FALSE, warning=TRUE, include=FALSE}
+```{r message=FALSE, warning=TRUE}
 LandGenCourse::detachAllPackages()
 ```
