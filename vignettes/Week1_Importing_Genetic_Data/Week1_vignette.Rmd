@@ -283,11 +283,27 @@ Frogs.gstudio <- data.frame(FrogID=Frogs$FrogID, Frogs.gstudio)
 str(Frogs.gstudio)
 ```
 
-The following code detaches all packages except for some basic ones:
+## 6. Your turn
+
+### a) Conceptual review
+
+No conceptual review for this lab, as no data analysis was performed.
+
+### b) R programming exercise
+
+**Task:** Import the data set `pulsatilla_genotypes`, which we'll use in a later lab, into 'gstudio'.
+
+**Hints:**
+
+- The file `pulsatilla_genotypes.csv` is a available as a system file in the `extdata` folder of the `LandGenCourse` package. You you can access it with `system.file("extdata", "pulsatilla_genotypes.csv", package = "LandGenCourse")`. The file has a header row.
+- Adapt the code from section 2.c to import the raw data set. View it. How are the genetic data coded? 
+- Make sure the 'gstudio' package is loaded.
+- Adapt the code from section 5 to import the genetic data with 'gstudio'. The loci are in columns 6 - 19. What setting for 'type' is appropriate for this data set? Check the help file for 'read_population'. 
+- Use the function `str` to check the imported data. Does each variable have the correct data type? Note: there should be 7 variables of type 'locus'.
+
+
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
-#detach("package:adegenet", unload=TRUE)
-#detach("package:ade4", unload=TRUE)
-#detach("package:gstudio", unload=TRUE)
+# Note: this line of code detaches all packages that were loaded. This is necessary only for technical reasons of building the R package.
 LandGenCourse::detachAllPackages()
 ```
