@@ -1,0 +1,239 @@
+---
+title: "Solutions to R Exercises (Weeks 1 - 8)"
+author: "Helene Wagner"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: flatly
+    toc: yes
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+---
+
+# Week 1 
+
+### a) Load packages
+
+```{r}
+library(gstudio)
+```
+
+### b) View system file
+
+```{r}
+Pulsatilla <- read.csv(system.file("extdata", "pulsatilla_genotypes.csv", 
+                            package = "LandGenCourse"), header=TRUE)
+View(Pulsatilla)
+```
+
+### c) Import data into `gstudio`
+
+Notes: 
+
+- Need to load library `gstudio` or use `gstudio::read_population`
+- Argument `type` should be set to 'column'.
+- Specify correct columns for locus data
+
+```{r}
+Pulsatilla.gstudio <- read_population(path=system.file("extdata",
+                           "pulsatilla_genotypes.csv", 
+                           package = "LandGenCourse"), 
+                   type="column", locus.columns=c(6:19), 
+                   phased=FALSE, sep=",", header=TRUE)
+```
+
+### d) Check imported data
+
+```{r}
+str(Pulsatilla.gstudio) 
+```
+
+### e) Make sense of variables
+
+Note: to create bulleted list, there must be an empty line before the list and one after the list.
+
+- Identifiers: ID (integer), OffID (integer), Population (character)
+- Spatial coordinates: X (numeric), Y (numeric)
+- Genetic data: loc1_a - loc7_a (locus)
+
+### f) Convert to genind object
+
+Note: the last row in the output below ("Optional content") should list @pop and indicate that group size ranges between 55 - 128 genotyped individuals. 
+
+```{r}
+Pulsatilla.genind2 <- adegenet::df2genind(X=Pulsatilla.gstudio[,c(6:12)], sep=":", ncode=NULL,   
+                          ind.names=Pulsatilla.gstudio$ID, loc.names=NULL, 
+                          pop=Pulsatilla.gstudio$Population, NA.char="", ploidy=2, 
+                          type="codom", strata=NULL, hierarchy=NULL)
+Pulsatilla.genind2
+```
+
+# Week 2 
+
+### a) Load packages
+
+```{r}
+library(gstudio)
+library(dplyr)
+library(tibble)
+library(sp)
+```
+
+### b) Import data
+
+```{r}
+Pulsatilla.gstudio <- read_population(path=system.file("extdata",
+                           "pulsatilla_genotypes.csv", 
+                           package = "LandGenCourse"), 
+                   type="column", locus.columns=c(6:19), 
+                   phased=FALSE, sep=",", header=TRUE)
+str(Pulsatilla.gstudio)
+```
+
+### c) Summarize by site
+
+```{r}
+Pulsatilla <- Pulsatilla.gstudio %>% group_by(Population) %>% summarize(nIndiv = n())
+```
+
+### d) Add mean coordinates
+
+Note: important to specify site indicator `Population`.
+
+```{r}
+Pulsatilla <- Pulsatilla.gstudio %>% group_by(Population) %>% summarize(nIndiv = n(), meanX = mean(X), meanY = mean(Y))
+```
+ 
+### e) Convert to spatial object
+
+Note: important to use the variable names created above in d.
+
+```{r}
+coordinates(Pulsatilla) <- ~ meanX + meanY
+```
+
+### f) Specify known projection
+ 
+```{r}
+proj4string(Pulsatilla) <- CRS("+init=epsg:31468")
+```
+
+### g) Transform projection
+
+Note: the sites are located in Southern Germany. 
+
+```{r}
+Pulsatilla.longlat <- sp::spTransform(Pulsatilla, 
+                      CRSobj = tmaptools::get_proj4("longlat")$proj4string)
+Pulsatilla.longlat@coords
+```
+
+### h) Create bubble plot
+
+Note: important to use the variable name created above in c/d.
+```{r}
+bubble(Pulsatilla.longlat, "nIndiv", fill = FALSE)
+```
+
+
+# Week 3 
+
+### a) Load packages
+
+```{r}
+library(gstudio)
+library(dplyr)
+library(adegenet)
+```
+
+### b) Import data
+
+```{r}
+library(gstudio)
+Pulsatilla.gstudio <- read_population(path=system.file("extdata",
+                           "pulsatilla_genotypes.csv", 
+                           package = "LandGenCourse"), 
+                   type="column", locus.columns=c(6:19), 
+                   phased=FALSE, sep=",", header=TRUE)
+```
+
+### c) Count genotyped individuals
+
+```{r}
+# Overall sample size:
+nrow(Pulsatilla.gstudio)
+
+# Number of adults:
+nrow(Pulsatilla.gstudio[Pulsatilla.gstudio$OffID == 0,])
+
+# Alternative with 'filter':
+Pulsatilla.gstudio %>% filter(OffID == 0) %>% nrow()
+```
+
+### d) Drop offspring from dataset
+
+```{r}
+# By indexing:
+Pulsatilla.adults <- Pulsatilla.gstudio[Pulsatilla.gstudio$OffID == 0,]
+nrow(Pulsatilla.adults)
+
+# Alternative with 'filter':
+Pulsatilla.adults <- Pulsatilla.gstudio %>% filter(OffID == 0)
+nrow(Pulsatilla.adults)
+```
+
+### e) Split dataset by site
+
+```{r}
+Adults.by.site <- split(Pulsatilla.adults, Pulsatilla.adults$Population)
+length(Adults.by.site)
+```
+
+### f) Count adults per site with `sapply`
+
+```{r}
+sapply(Adults.by.site, nrow)
+```
+
+### g) Convert to genind object
+
+```{r}
+Adults.genind <- adegenet::df2genind(X=Pulsatilla.adults[,c(6:12)], sep=":", ncode=NULL, 
+                          ind.names= Pulsatilla.adults$ID, loc.names=NULL, 
+                          pop=Pulsatilla.adults$Population, NA.char="", ploidy=2, 
+                          type="codom", strata=NULL, hierarchy=NULL)
+
+Adults.genind
+```
+
+### h) Check polymorphism
+
+```{r}
+summary(Adults.genind)
+```
+
+### i) Test for HWE by site and locus
+
+Note: while a few values are <0.05, there is not systematic pattern, i.e. no locus seems to be out of HWE across many site, and vice versa.
+
+```{r}
+# Chi-squared test: p-value
+HWE.test <- data.frame(sapply(seppop(Adults.genind), 
+                              function(ls) pegas::hw.test(ls, B=0)[,3]))
+HWE.test.chisq <- t(data.matrix(HWE.test))
+{cat("Chi-squared test (p-values):", "\n")
+round(HWE.test.chisq,3)}
+```
+
+
+# Week 4 
+
+# Week 5 
+
+# Week 6 
+
+# Week 7 
+
+# Week 8 

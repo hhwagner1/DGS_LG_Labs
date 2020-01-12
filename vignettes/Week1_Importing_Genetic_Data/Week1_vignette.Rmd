@@ -102,7 +102,7 @@ As the file is saved in csv format, we use the function 'read.csv' to import it 
 ```{r}
 Frogs <- read.csv(system.file("extdata", "ralu.loci.csv", 
                             package = "LandGenCourse"), header=TRUE)
-as.tibble(Frogs)
+as_tibble(Frogs)
 ```
 
 - The data frame 'Frogs' contains 181 rows and 11 columns. Only the first few are shown.
@@ -280,27 +280,35 @@ Frogs.gstudio is a data frame, and we can manipulate like any other data frame. 
 
 ```{r}
 Frogs.gstudio <- data.frame(FrogID=Frogs$FrogID, Frogs.gstudio) 
-str(Frogs.gstudio)
+head(Frogs.gstudio)
 ```
 
-## 6. Your turn
+### e) Convert to 'genind' object
 
-### a) Conceptual review
+We can use the dataframe with the locus objects from gstudio to import the data into a genind object. In this case, we set `sep=":"`, because the `locus` object in `gstudio` stores the alleles at each locus separated by a colon, and `NA.char=""`, because `gstudio` stores missing values as empty cells. 
 
-No conceptual review for this lab, as no data analysis was performed.
+```{r}
+Frogs.genind2 <- adegenet::df2genind(X=Frogs.gstudio[,c(4:11)], sep=":", ncode=NULL,   
+                          ind.names=Frogs.gstudio$FrogID, loc.names=NULL, 
+                          pop=Frogs.gstudio$Pop, NA.char="", ploidy=2, 
+                          type="codom", strata=NULL, hierarchy=NULL)
+Frogs.genind2
+```
 
-### b) R programming exercise
 
-**Task:** Import the data set `pulsatilla_genotypes`, which we'll use in a later lab, into 'gstudio'.
+
+## 6. R exercise Week 1
+
+**Task:** Import the data set `pulsatilla_genotypes`, which we'll use in a later lab, into `gstudio` and convert it to a genind objec 
 
 **Hints:**
 
-- The file `pulsatilla_genotypes.csv` is a available as a system file in the `extdata` folder of the `LandGenCourse` package. You you can access it with `system.file("extdata", "pulsatilla_genotypes.csv", package = "LandGenCourse")`. The file has a header row.
-- Adapt the code from section 2.c to import the raw data set. View it. How are the genetic data coded? 
-- Make sure the 'gstudio' package is loaded.
-- Adapt the code from section 5 to import the genetic data with 'gstudio'. The loci are in columns 6 - 19. What setting for 'type' is appropriate for this data set? Check the help file for 'read_population'. 
-- Use the function `str` to check the imported data. Does each variable have the correct data type? Note: there should be 7 variables of type 'locus'.
-
+a) **Load packages**: Make sure the `gstudio` package is loaded.
+b) **View system file**: The file `pulsatilla_genotypes.csv` is a available as a system file in the `extdata` folder of the `LandGenCourse` package. You you can access it with `system.file("extdata", "pulsatilla_genotypes.csv", package = "LandGenCourse")`. The file has a header row. Adapt the code from section 2.c to import the raw data set. View it. How are the genetic data coded? 
+c) **Import data into gstudio**: Adapt the code from section 5.b to import the genetic data with 'gstudio'. The loci are in columns 6 - 19. What setting for 'type' is appropriate for this data set? Check the help file for 'read_population'. 
+d) **Check imported data**: Use the function `str` to check the imported data. Does each variable have the correct data type? Note: there should be 7 variables of type 'locus'.
+e) **Make sense of variables**: Create a bulleted list with three entries, one for each group of variables in this data set: identifiers, spatial coordinates, genetic data. For each group, list the variable names and their data type (e.g., numeric, integer, character, logical, factor, locus). Check the cheatsheet "R markdown language" if needed.
+f) **Convert to genind object**: Modify the code from section 5.e to convert the data to from gstudio to a genind object. Ignore the warning about duplicate labels. Print a summary of the genind object. What is the range of the number of genotyped individuals per population in this dataset?
 
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}

@@ -374,11 +374,9 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <li><a href="#b-set-arguments">b) Set arguments</a></li>
 <li><a href="#c-check-imported-data-1">c) Check imported data</a></li>
 <li><a href="#d-add-frogid">d) Add FrogID</a></li>
+<li><a href="#e-convert-to-genind-object">e) Convert to ‘genind’ object</a></li>
 </ul></li>
-<li><a href="#your-turn">6. Your turn</a><ul>
-<li><a href="#a-conceptual-review">a) Conceptual review</a></li>
-<li><a href="#b-r-programming-exercise">b) R programming exercise</a></li>
-</ul></li>
+<li><a href="#r-exercise-week-1">6. R exercise Week 1</a></li>
 </ul>
 </div>
 
@@ -457,9 +455,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <p>As the file is saved in csv format, we use the function ‘read.csv’ to import it into an R object called ‘Frogs’. Display the first few rows and columns to check whether the data have been imported correctly:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb4-1" data-line-number="1">Frogs &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="kw">system.file</span>(<span class="st">&quot;extdata&quot;</span>, <span class="st">&quot;ralu.loci.csv&quot;</span>, </a>
 <a class="sourceLine" id="cb4-2" data-line-number="2">                            <span class="dt">package =</span> <span class="st">&quot;LandGenCourse&quot;</span>), <span class="dt">header=</span><span class="ot">TRUE</span>)</a>
-<a class="sourceLine" id="cb4-3" data-line-number="3"><span class="kw">as.tibble</span>(Frogs)</a></code></pre></div>
-<pre><code>## Warning: `as.tibble()` is deprecated, use `as_tibble()` (but mind the new semantics).
-## This warning is displayed once per session.</code></pre>
+<a class="sourceLine" id="cb4-3" data-line-number="3"><span class="kw">as_tibble</span>(Frogs)</a></code></pre></div>
 <pre><code>## # A tibble: 181 x 10
 ##    SiteName     Pop      A     B     C     D     E     F     G     H    
 ##    &lt;fct&gt;        &lt;fct&gt;    &lt;fct&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt;
@@ -487,8 +483,10 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <div id="d-create-id-variable" class="section level3">
 <h3>d) Create ID variable</h3>
 <p>We’ll add unique ID’s for the frogs (to show how these would be imported). Here we take, for each frog, a substring of ‘Pop’ containing the first three letters, add the row number, and separate them by a period.</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb7-1" data-line-number="1">Frogs &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">FrogID =</span> <span class="kw">paste</span>(<span class="kw">substr</span>(Frogs<span class="op">$</span>Pop, <span class="dv">1</span>, <span class="dv">3</span>), <span class="kw">row.names</span>(Frogs), <span class="dt">sep=</span><span class="st">&quot;.&quot;</span>), Frogs)</a>
-<a class="sourceLine" id="cb7-2" data-line-number="2"><span class="kw">as.tibble</span>(Frogs)</a></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb6-1" data-line-number="1">Frogs &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">FrogID =</span> <span class="kw">paste</span>(<span class="kw">substr</span>(Frogs<span class="op">$</span>Pop, <span class="dv">1</span>, <span class="dv">3</span>), <span class="kw">row.names</span>(Frogs), <span class="dt">sep=</span><span class="st">&quot;.&quot;</span>), Frogs)</a>
+<a class="sourceLine" id="cb6-2" data-line-number="2"><span class="kw">as.tibble</span>(Frogs)</a></code></pre></div>
+<pre><code>## Warning: `as.tibble()` is deprecated, use `as_tibble()` (but mind the new semantics).
+## This warning is displayed once per session.</code></pre>
 <pre><code>## # A tibble: 181 x 11
 ##    FrogID SiteName     Pop      A     B     C     D     E     F     G     H    
 ##    &lt;fct&gt;  &lt;fct&gt;        &lt;fct&gt;    &lt;fct&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt; &lt;fct&gt;
@@ -710,40 +708,55 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h3>d) Add FrogID</h3>
 <p>Frogs.gstudio is a data frame, and we can manipulate like any other data frame. Here we will add the variable ‘FrogID’ as the first column.</p>
 <div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb28-1" data-line-number="1">Frogs.gstudio &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">FrogID=</span>Frogs<span class="op">$</span>FrogID, Frogs.gstudio) </a>
-<a class="sourceLine" id="cb28-2" data-line-number="2"><span class="kw">str</span>(Frogs.gstudio)</a></code></pre></div>
-<pre><code>## 'data.frame':    181 obs. of  11 variables:
-##  $ FrogID  : Factor w/ 181 levels &quot;Air.1&quot;,&quot;Air.10&quot;,..: 1 12 15 16 17 18 19 20 21 2 ...
-##  $ SiteName: chr  &quot;AirplaneLake&quot; &quot;AirplaneLake&quot; &quot;AirplaneLake&quot; &quot;AirplaneLake&quot; ...
-##  $ Pop     : chr  &quot;Airplane&quot; &quot;Airplane&quot; &quot;Airplane&quot; &quot;Airplane&quot; ...
-##  $ A       : 'locus' chr  &quot;1:1&quot; &quot;2:2&quot; &quot;1:1&quot; &quot;1:1&quot; ...
-##  $ B       : 'locus' chr  &quot;1:1&quot; &quot;1:1&quot; &quot;1:1&quot; &quot;1:1&quot; ...
-##  $ C       : 'locus' chr  &quot;1:1&quot; &quot;&quot; &quot;1:1&quot; &quot;&quot; ...
-##  $ D       : 'locus' chr  &quot;1:1&quot; &quot;1:1&quot; &quot;1:1&quot; &quot;2:2&quot; ...
-##  $ E       : 'locus' chr  &quot;1:2&quot; &quot;1:1&quot; &quot;3:3&quot; &quot;1:2&quot; ...
-##  $ F       : 'locus' chr  &quot;1:1&quot; &quot;&quot; &quot;1:1&quot; &quot;&quot; ...
-##  $ G       : 'locus' chr  &quot;1:1&quot; &quot;2:2&quot; &quot;1:1&quot; &quot;&quot; ...
-##  $ H       : 'locus' chr  &quot;4:5&quot; &quot;&quot; &quot;3:3&quot; &quot;&quot; ...</code></pre>
+<a class="sourceLine" id="cb28-2" data-line-number="2"><span class="kw">head</span>(Frogs.gstudio)</a></code></pre></div>
+<pre><code>##   FrogID     SiteName      Pop   A   B   C   D   E   F   G   H
+## 1  Air.1 AirplaneLake Airplane 1:1 1:1 1:1 1:1 1:2 1:1 1:1 4:5
+## 2  Air.2 AirplaneLake Airplane 2:2 1:1     1:1 1:1     2:2    
+## 3  Air.3 AirplaneLake Airplane 1:1 1:1 1:1 1:1 3:3 1:1 1:1 3:3
+## 4  Air.4 AirplaneLake Airplane 1:1 1:1     2:2 1:2            
+## 5  Air.5 AirplaneLake Airplane 1:2 1:3 1:1 1:1 1:2 1:1 1:2 4:5
+## 6  Air.6 AirplaneLake Airplane 1:2 1:1 1:1 1:3 1:1 1:1 1:2 4:5</code></pre>
+</div>
+<div id="e-convert-to-genind-object" class="section level3">
+<h3>e) Convert to ‘genind’ object</h3>
+<p>We can use the dataframe with the locus objects from gstudio to import the data into a genind object. In this case, we set <code>sep=&quot;:&quot;</code>, because the <code>locus</code> object in <code>gstudio</code> stores the alleles at each locus separated by a colon, and <code>NA.char=&quot;&quot;</code>, because <code>gstudio</code> stores missing values as empty cells.</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb30-1" data-line-number="1">Frogs.genind2 &lt;-<span class="st"> </span>adegenet<span class="op">::</span><span class="kw">df2genind</span>(<span class="dt">X=</span>Frogs.gstudio[,<span class="kw">c</span>(<span class="dv">4</span><span class="op">:</span><span class="dv">11</span>)], <span class="dt">sep=</span><span class="st">&quot;:&quot;</span>, <span class="dt">ncode=</span><span class="ot">NULL</span>,   </a>
+<a class="sourceLine" id="cb30-2" data-line-number="2">                          <span class="dt">ind.names=</span>Frogs.gstudio<span class="op">$</span>FrogID, <span class="dt">loc.names=</span><span class="ot">NULL</span>, </a>
+<a class="sourceLine" id="cb30-3" data-line-number="3">                          <span class="dt">pop=</span>Frogs.gstudio<span class="op">$</span>Pop, <span class="dt">NA.char=</span><span class="st">&quot;&quot;</span>, <span class="dt">ploidy=</span><span class="dv">2</span>, </a>
+<a class="sourceLine" id="cb30-4" data-line-number="4">                          <span class="dt">type=</span><span class="st">&quot;codom&quot;</span>, <span class="dt">strata=</span><span class="ot">NULL</span>, <span class="dt">hierarchy=</span><span class="ot">NULL</span>)</a>
+<a class="sourceLine" id="cb30-5" data-line-number="5">Frogs.genind2</a></code></pre></div>
+<pre><code>## /// GENIND OBJECT /////////
+## 
+##  // 181 individuals; 8 loci; 39 alleles; size: 55.5 Kb
+## 
+##  // Basic content
+##    @tab:  181 x 39 matrix of allele counts
+##    @loc.n.all: number of alleles per locus (range: 3-9)
+##    @loc.fac: locus factor for the 39 columns of @tab
+##    @all.names: list of allele names for each locus
+##    @ploidy: ploidy of each individual  (range: 2-2)
+##    @type:  codom
+##    @call: adegenet::df2genind(X = Frogs.gstudio[, c(4:11)], sep = &quot;:&quot;, 
+##     ncode = NULL, ind.names = Frogs.gstudio$FrogID, loc.names = NULL, 
+##     pop = Frogs.gstudio$Pop, NA.char = &quot;&quot;, ploidy = 2, type = &quot;codom&quot;, 
+##     strata = NULL, hierarchy = NULL)
+## 
+##  // Optional content
+##    @pop: population of each individual (group size range: 7-23)</code></pre>
 </div>
 </div>
-<div id="your-turn" class="section level2">
-<h2>6. Your turn</h2>
-<p>The following are suggested exercises.</p>
-<div id="a-conceptual-review" class="section level3">
-<h3>a) Conceptual review</h3>
-<p>No conceptual review for this lab, as no data analysis was performed.</p>
-</div>
-<div id="b-r-programming-exercise" class="section level3">
-<h3>b) R programming exercise</h3>
-<p><strong>Task:</strong> Import the data set <code>pulsatilla_genotypes</code>, which we’ll use in a later lab, into ‘gstudio’.</p>
+<div id="r-exercise-week-1" class="section level2">
+<h2>6. R exercise Week 1</h2>
+<p><strong>Task:</strong> Import the data set <code>pulsatilla_genotypes</code>, which we’ll use in a later lab, into <code>gstudio</code> and convert it to a genind objec</p>
 <p><strong>Hints:</strong></p>
-<ul>
-<li>The file <code>pulsatilla_genotypes.csv</code> is a available as a system file in the <code>extdata</code> folder of the <code>LandGenCourse</code> package. You you can access it with <code>system.file(&quot;extdata&quot;, &quot;pulsatilla_genotypes.csv&quot;, package = &quot;LandGenCourse&quot;)</code>. The file has a header row.</li>
-<li>Adapt the code from section 2.c to import the raw data set. View it. How are the genetic data coded?</li>
-<li>Make sure the ‘gstudio’ package is loaded.</li>
-<li>Adapt the code from section 5 to import the genetic data with ‘gstudio’. The loci are in columns 6 - 19. What setting for ‘type’ is appropriate for this data set? Check the help file for ‘read_population’.</li>
-<li>Use the function <code>str</code> to check the imported data. Does each variable have the correct data type? Note: there should be 7 variables of type ‘locus’.</li>
-</ul>
-</div>
+<ol style="list-style-type: lower-alpha">
+<li><strong>Load packages</strong>: Make sure the ‘gstudio’ package is loaded.</li>
+<li><strong>View system file</strong>: The file <code>pulsatilla_genotypes.csv</code> is a available as a system file in the <code>extdata</code> folder of the <code>LandGenCourse</code> package. You you can access it with <code>system.file(&quot;extdata&quot;, &quot;pulsatilla_genotypes.csv&quot;, package = &quot;LandGenCourse&quot;)</code>. The file has a header row. Adapt the code from section 2.c to import the raw data set. View it. How are the genetic data coded?</li>
+<li><strong>Import data into gstudio</strong>: Adapt the code from section 5 to import the genetic data with ‘gstudio’. The loci are in columns 6 - 19. What setting for ‘type’ is appropriate for this data set? Check the help file for ‘read_population’.</li>
+<li><strong>Check imported data</strong>: Use the function <code>str</code> to check the imported data. Does each variable have the correct data type? Note: there should be 7 variables of type ‘locus’.</li>
+<li><strong>Make sense of variables</strong>: Create a bulleted list with three entries, one for each group of variables in this data set: identifiers, spatial coordinates, genetic data. For each group, list the variable names and their data type (e.g., numeric, integer, character, logical, factor, locus). Check the cheatsheet “R markdown language” if needed.</li>
+<li><strong>Convert to genind object</strong>: Modify the code from section 5.e to convert the data to from gstudio to a genind object. Ignore the warning about duplicate labels. Print a summary of the genind object. What is the range of the number of genotyped individuals per population in this dataset?</li>
+</ol>
 </div>
 
 <script type="text/javascript">
