@@ -6,10 +6,10 @@ output:
   html_document:
     theme: flatly
     toc: yes
-    toc_depth: 2
+    toc_depth: 3
     toc_float:
-      collapsed: false
-      smooth_scroll: false
+      collapsed: true
+      smooth_scroll: true
 ---
 
 # Week 1 
@@ -18,14 +18,21 @@ output:
 
 ```{r}
 library(gstudio)
+library(tibble)
+library(adegenet)
+library(here)
 ```
 
-### b) View system file
+### b) View data file
 
 ```{r}
-Pulsatilla <- read.csv(system.file("extdata", "pulsatilla_genotypes.csv", 
-                            package = "LandGenCourse"), header=TRUE)
-View(Pulsatilla)
+# Copy to downloads folder (as needed):
+file.copy(system.file("extdata", "pulsatilla_genotypes.csv", package = "LandGenCourse"),
+          paste0(here(), "/downloads/pulsatilla_genotypes.csv"), overwrite=FALSE)
+
+# Import from downloads folder:
+Pulsatilla <- read.csv(paste0(here(), "/downloads/pulsatilla_genotypes.csv"), header=TRUE)
+#View(Pulsatilla)
 ```
 
 ### c) Import data into `gstudio`
@@ -46,21 +53,25 @@ Pulsatilla.gstudio <- read_population(path=system.file("extdata",
 
 ### d) Check imported data
 
+Note: `str` may create an error message "Error: $ operator is invalid for atomic vectors" - there seems to be some interference with other packages, depending on what files are open. It seems to run without error during `knit`, though. May use `as_tibble` instead.
+
 ```{r}
-str(Pulsatilla.gstudio) 
+str(Pulsatilla.gstudio)
+# Alternative
+as_tibble(Pulsatilla.gstudio) 
 ```
 
-### e) Make sense of variables
+### e) Check variable types
 
 Note: to create bulleted list, there must be an empty line before the list and one after the list.
 
-- Identifiers: ID (integer), OffID (integer), Population (character)
-- Spatial coordinates: X (numeric), Y (numeric)
-- Genetic data: loc1_a - loc7_a (locus)
+- **ID**: integer
+- **OffID**: integer
+- **Population**: character
+- **Coordinates**: numeric (`dbl` means numeric with double precision)
+- **Loci**: locus (secondary type: character) 
 
 ### f) Convert to genind object
-
-Note: the last row in the output below ("Optional content") should list @pop and indicate that group size ranges between 55 - 128 genotyped individuals. 
 
 ```{r}
 Pulsatilla.genind2 <- adegenet::df2genind(X=Pulsatilla.gstudio[,c(6:12)], sep=":", ncode=NULL,   
@@ -69,6 +80,13 @@ Pulsatilla.genind2 <- adegenet::df2genind(X=Pulsatilla.gstudio[,c(6:12)], sep=":
                           type="codom", strata=NULL, hierarchy=NULL)
 Pulsatilla.genind2
 ```
+Note: the last row in the output ("Optional content") should list @pop and indicate that group size ranges between 55 - 128 genotyped individuals. 
+
+### Answer
+
+There are between 55 - 128 genotyped individuals per site ("group"). 
+
+
 
 # Week 2 
 
@@ -122,8 +140,6 @@ proj4string(Pulsatilla) <- CRS("+init=epsg:31468")
 
 ### g) Transform projection
 
-Note: the sites are located in Southern Germany. 
-
 ```{r}
 Pulsatilla.longlat <- sp::spTransform(Pulsatilla, 
                       CRSobj = tmaptools::get_proj4("longlat")$proj4string)
@@ -137,6 +153,18 @@ Note: important to use the variable name created above in c/d.
 bubble(Pulsatilla.longlat, "nIndiv", fill = FALSE)
 ```
 
+### i) Save R object
+
+```{r}
+saveRDS(Pulsatilla.longlat, file = paste0(here::here(), "/output/Pulsatilla.longlat.rds"))
+```
+
+### Answer
+
+The sites are located in Southern Germany. To check, enter the following in Google maps: 
+`48.99875, 11.06123` and zoom out. 
+
+Note: must specify latitude first, then longitude. Must use coordinates in "lonlat" projection.
 
 # Week 3 
 
@@ -226,6 +254,30 @@ HWE.test.chisq <- t(data.matrix(HWE.test))
 {cat("Chi-squared test (p-values):", "\n")
 round(HWE.test.chisq,3)}
 ```
+
+### k) Calculate Hexp and Hobs by site
+
+```{r}
+Hexp <- t(sapply(seppop(Adults.genind), function(ls) summary(ls)$Hexp))
+Hobs <- t(sapply(seppop(Adults.genind), function(ls) summary(ls)$Hobs))
+Hexp.pop <- apply(Hexp, 1, mean)
+Hobs.pop <- apply(Hobs, 1, mean)
+
+H.pop <- data.frame(Pop = names(Hobs.pop),
+                              Hobs = Hobs.pop,
+                              Hexp = Hexp.pop)
+H.pop
+```
+
+### l) Save results as R object
+
+```{r}
+saveRDS(H.pop, file = paste0(here::here(), "/output/H.pop.rds"))
+```
+
+### Answer
+
+Site G05a had the lowest expected heterozygosity.
 
 
 # Week 4 

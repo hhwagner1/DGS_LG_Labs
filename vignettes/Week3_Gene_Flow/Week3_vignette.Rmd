@@ -383,7 +383,7 @@ The allele frequencies of all alleles from the same locus (e.g., A.1, A.2 and A.
 apply(Freq, MARGIN = 1, FUN = sum)    # Just checking
 ```
 
-## R Exercise Week 3
+## 5. R Exercise Week 3
 
 **Task:** Drop offspring (seeds) from dataset `pulsatilla_genotypes.csv`, check for HWE by site and locus and calculate Hexp for each site. 
 
@@ -395,12 +395,15 @@ c) **Count genotyped individuals**. Determine the number of rows (and thus genot
 d) **Drop offspring from dataset**: Subset the data to retain only the adults, and call it `Pulsatilla.adults`. Again, you can achieve this either by indexing with square brackets, or by using the function `filter` from the `dplyr` package. Check the number of rows (adults).
 e) **Split dataset by site**. Use function `split` to split the data by site (population) and create an object `Adults.by.site`. Determine the length of the resulting list, i.e., the number of sub-datasets, one for each site.
 f) **Count adults per site with sapply**:  Use `sapply` to calculate the number of rows (and thus genotyped individuals) per site (population). What is the range of sample sizes for adults?
-g) **Convert to genind object**: adapt your code from Week 1 exercise to convert the dataset with all adults, `Pulsatilla.adults`, to a genind object. Plot the object to check that the data have been correctly imported. Is the number of rows equal to the number of adults that you found above? 
-h) **Check polymorphism**: Plot a summary of the `genind` object to check whether markers are polymorphic: what is the range of expected heterozygosity among the loci?
+g) **Convert to genind object**: adapt your code from Week 1 exercise to convert the dataset with all adults, `Pulsatilla.adults`, to a `genind` object. Print the object to check that the data have been correctly imported. Is the number of rows equal to the number of adults that you found above? 
+h) **Check polymorphism**: Use function `summary` (section 2.b) to check whether markers are polymorphic: what is the range of expected heterozygosity among the loci?
 i) **Test for HWE by site and locus**: adapt the code from section 2.c to test for HWE deviations across by site and locus (using chi-square or Monte-Carlo test). How many tests were significant (p-value < 0.05)? Is there a systematic pattern of deviations for a specific locus, or for a specific site? 
-k) **Calculate Hexp by site**: adapt code from section 3.b to calculate `Hexp` by site and locus, then take the mean across all loci (`Hexp.pop`). 
+k) **Calculate Hexp and Hobs by site**: adapt code from section 3.b to calculate `Hexp` and `Hobs` by site and locus, then take the mean across all loci (`Hexp.pop`, `Hobs.pop`) and combine them into a dataframe `H.pop`. Include the population name as a variable. 
+l) **Save result as R object**: Save the object `H.pop` as an R object using the following code:   
+`saveRDS(H.pop, file = paste0(here::here(), "/output/H.pop.rds"))`.   
+We will need it for a later R exercise.
 
-
+**Question:** Which site had the lowest expected heterozygosity?
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 LandGenCourse::detachAllPackages()

@@ -602,12 +602,22 @@ Note: check this week's bonus material if you want to see how to use the new 'sf
 
 a) **Load libraries**: Load libraries `gstudio`, `dplyr`, `tibble` and `sp`. 
 b) **Import data**: Re-use your code from Week 1 exercise to import the dataset `pulsatilla_genotypes.csv` into `gstudio`. Recall that the resulting object is a data.frame. Check the variables with function `str`. Which variables contain the sites and the spatial coordinates?
-c) **Summarize by site**: Use the function `group_by` from library `dplyr` to group individuals (rows) by site (using pipe notation: `%>%`), and add the function `summarize` to count the number of genotyped individuals per population (i.e., sampling site). Recall that this can be done with nesting the function `n` within `summarize`: `summarize(nIndiv = n())`. Write the result into a new object `Pulsatilla`.
-d) **Add mean coordinates**: You can nest multiple functions within `summarize` and separate them with a comma. E.g., the function `mean` calculates the mean. Modify your code to calculate number of genotyped individuals for each site and their mean X and Y coordinates. Your object 'Pulsatilla' should now have three columns, one with the number of individuals and two with the mean coordinates. Display the dataset with `as_tibble` to check.
+c) **Summarize by site**: Use the function `group_by` from library `dplyr` to group individuals (rows) by site (using pipe notation: `%>%`), and add the function `summarize` to count the number of genotyped individuals per population (i.e., sampling site). Recall that this can be done with nesting the function `n` within `summarize`:  
+`summarize(nIndiv = n())`.   
+Write the result into a new object `Pulsatilla`.
+d) **Add mean coordinates**: You can nest multiple functions within `summarize` and separate them with a comma. E.g., to calculate both sample size and the mean of a variable `myVar`, you could write:  
+`summarize(nIndiv = n(), myMean = n(myVar))`  
+Modify your code to calculate number of genotyped individuals for each site and their mean X and Y coordinates. Your object 'Pulsatilla' should now have three columns, one with the number of individuals and two with the mean coordinates. Display the dataset with `as_tibble` to check.
 e) **Convert to spatial object**: Modify code from section 2.a to convert your dataframe `Pulsatilla` to a "SpatialPointsDataFrame" object (package `sp`). Make sure to adjust the correct variable names for the coordinates (i.e., the variable names that you assigned in the previous step for the mean X and Y coordinates).
-f) **Specify known projection**: Specify the proj4string as follows:  `proj4string(Pulsatilla) <- CRS("+init=epsg:31468")`
-g) **Transform projection**: Adapt code from section 2.c to transform the projection to the "longlat" coordinate system. Display the `coords` slot and check on Google maps where the first site is located.
+f) **Specify known projection**: Specify the proj4string as follows:   
+`proj4string(Pulsatilla) <- CRS("+init=epsg:31468")`
+g) **Transform projection**: Adapt code from section 2.c to transform the projection to the "longlat" coordinate system, and write it into an object `Pulsatilla.longlat`. Display the `coords` slot of `Pulsatilla.longlat` and check on Google maps where the first site is located.
 h) **Create bubble plot**: Adapt code from section 4.c to create a bubble plot of the number of individuals per population. Note: you may drop the argument `key.entries` as it has a default.
+i) **Save data as R object**: Save the object `Pulsatilla.longlat` as an R object using the following code:  
+`saveRDS(Pulsatilla.longlat, file = paste0(here::here(), "/output/Pulsatilla.longlat.rds"))`.  
+We will need it for a later R exercise.
+
+**Question:** Where on earth are the sites in the *Pulsatilla* dataset located?
 
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
