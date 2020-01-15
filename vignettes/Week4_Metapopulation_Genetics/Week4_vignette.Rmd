@@ -81,17 +81,18 @@ We also import site-level data from Tables 2 - 5 in Lamy et al. (2012). Use '?dd
 
 ```{r}
 data(dd.site, package = "LandGenCourse")
-tibble::as.tibble(dd.site)
+tibble::as_tibble(dd.site)
 ?dd.site
 ```
-With the help file for 'dd.site', check the meaning of the following explanatory variables:
+
+**Questions**: with the help file for 'dd.site', check the meaning of the following explanatory variables:
 
 - What does 'APE' refer to, and how is it different from 'APA'?
 - What does 'NLT' represent, and is it calculated independently from 'Size'?
 - What does 'Type' mean, and what about 'V' and 'D'?
 - To understand how connectivity 'C' and stability 'Stab' were calculated, you'll need to consult Lamy et al. (2012).
 
-Hypotheses - which explanatory variables would you expect to affect:
+**Your hypothesis**: which explanatory variables would you expect to affect:
 
 - Genetic diversity within local populations?
 - Genetic differentiation among local populations?
@@ -139,7 +140,7 @@ amova.test <- ade4::randtest(amova.result, nrepet = 999)
 amova.test
 ```
 
-Questions:
+**Questions**: 
 
 - At what level is there stronger differentiation, within or among clusters? 
 - What does this mean biologically?
@@ -167,7 +168,7 @@ cor(dd.spatial@data[ , c("FST.GESTE", "NLT", "C", "D")],
     use="pairwise.complete")
 ```
 
-Questions:
+**Questions**: 
 
 - Is there genetic evidence for higher drift in small populations?
 - Is there genetic evidence for higher gene flow among well connected patches?
@@ -264,7 +265,7 @@ par(mfrow=c(1,1))
 ## 4. What determines genetic diversity?
 
 - Can the same predictors (population size and connectivity) explain genetic diversity? 
-- Is patch size ('Size') a good proxy for population size (as often used in ecological studies)? 
+- Is patch size ('Size') a good proxy for population size (as often used in ecological studies)?
 - Which measure of genetic diversity shows the stronger response, allelic richness (rarefied) or expected heterozygosity?
 
 ### a) Correlation matrix
@@ -273,6 +274,8 @@ par(mfrow=c(1,1))
 cor(dd.spatial@data[, c("RA", "He", "Size", "NLT", "C", "D")],
     use="pairwise.complete")
 ```
+
+**Questions**: 
 
 - How strongly are the two diversity measures 'RA' and 'He' correlated?
 - Are 'NLT' and 'C' strongly correlated with the diversity measures 'RA' and 'He'? 
@@ -402,6 +405,114 @@ More than 20 sites in each group would have been needed to detect a large effect
 Hence, these particular results are inconclusive. There was a trend showing a large effect size but power was very low. This aspect of the study should ideally be repeated with a larger sample size before reaching any conclusions. 
 
 Note however that using additional evidence (e.g., population assignment tests), Lamy et al. (2012) concluded that extinctions were in fact less common in this system than previously assumed – in many cases of apparent extinction, individuals may still be present but just not detected.
+
+## 7. R Exercise Week 4
+
+**Task:** Build on your previous exercises and plot the sites on a map downloaded from the internet. Explore the relationships between Hexp, census population size and percent forest cover within 500 m of the site (forest may act as a barrier for grassland plants). 
+
+**Hints:**
+
+a) **Load packages**: You may want to load the packages `gstudio`, `dplyr` and `ggplot2`. Alternatively, you can use `::` to call functions from packages.
+b) **Recreate site-level dataset with "lonlat" coordinates**. Rerun your Week 2 code. This should produce a SpatialPointsDataFrame object `Pulsatilla.longlat` with coordinates in "lonlat" projection. Use the function `as.data.frame` to print the dataset including the spatial coordinates. Check the variable names. 
+c) **Plot sites onto map from internet**: adapt the following code from section 3.c to download a stamen map from the internet and plot the sites on it: 
+`myMap <- ggmap::qmplot(Longitude, Latitude,  data = as.data.frame(dd.spatial), source = "stamen", maptype = "toner-lite")`
+Display the map `myMap`. 
+
+
+b) **Recreate dataset**: Re-use your code from Week 3 exercise to import the dataset `pulsatilla_genotypes.csv` into `gstudio`.
+c) **Drop offspring**: Use `dplyr::filter` to drop all offspring, retaining only adults (`OffID == 0`). 
+d) **Convert to ecogen object**: Use the function `EcoGenetics::gstudio2ecogen` to convert to an `ecogen` object. Here is a generic code example from the help file:
+`toeco <- gstudio2ecogen(togstudio, lat = "Latitude", lon = "Longitude", ID = "ID", struct = "pop")`. Adapt the code to the Pulsatilla dataset. Note that `lat` refers to the y coordinate and `lon` to the x coordinate. The actual coordinates in this dataset are not in "lonlat" format. Print the object to check that the variables have been correctly added to the slots XY, G and S.
+e) **Convert to ecopop object**: Use the function `EcoGenetics::ecogen2ecopop` to aggregate the individual data to population-level data. Here is a generic code example from the help file: `my_ecopop <- ecogen2ecopop(eco, hier = "pop")`.
+f) **Add site-level attribute data**: 
+
+
+### a) Load packages
+
+```{r}
+library(gstudio)
+library(dplyr)
+library(EcoGenetics)
+library(ggplot2)
+```
+
+### b) Import data into gstudio
+
+```{r}
+Pulsatilla.gstudio <- read_population(path=system.file("extdata",
+                           "pulsatilla_genotypes.csv", 
+                           package = "LandGenCourse"), 
+                   type="column", locus.columns=c(6:19), 
+                   phased=FALSE, sep=",", header=TRUE)
+```
+
+### c) Drop offspring
+
+```{r}
+Adults <- Pulsatilla.gstudio %>% filter(OffID == 0)
+```
+
+### d) Convert to genind object
+
+```{r}
+Adults.genind <- adegenet::df2genind(X=Adults[,c(6:12)], sep=":", ncode=NULL,   
+                          ind.names=Adults$ID, loc.names=NULL, 
+                          pop=Adults$Population, NA.char="", ploidy=2, 
+                          type="codom", strata=NULL, hierarchy=NULL)
+Adults.genind
+```
+
+### e) Calculate f statistics
+
+```{r}
+
+```
+
+
+### d) Convert to ecogen object
+
+```{r}
+Adults.ecogen <- EcoGenetics::gstudio2ecogen(Adults, struct = "Population",
+                     lat = "Y", lon = "X")
+Adults.ecogen
+```
+
+### e) Convert to ecopop object
+
+```{r}
+Adults.ecopop <- ecogen2ecopop(Adults.ecogen, hier = "Population")
+```
+
+### e)
+
+```{r}
+read.csv(system.file("extdata", "pulsatilla_population.csv", 
+                     package="LandGenCourse"), header=TRUE)
+
+read.csv(system.file("extdata", "pulsatilla_momVariables.csv", 
+                     package="LandGenCourse"), header=TRUE)
+```
+
+### f)
+
+```{r}
+myMap <- ggmap::qmplot(meanX, meanY,  data = as.data.frame(Pulsatilla.longlat),
+              source = "stamen", maptype = "toner-lite")
+myMap
+```
+
+### g)
+
+```{r}
+
+```
+
+### h)
+
+```{r}
+
+```
+
 
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 LandGenCourse::detachAllPackages()
