@@ -67,7 +67,6 @@ Frogs.coords <- read.csv(system.file("extdata", "ralu_coords_allpops.csv",
 
 In Week 3, we calculated population-level genetic data as a table `Frogs.diversity`. Here we import a table with the same diversity measures for all 29 sites from a system file in `LandGenCourse`. 
 
-UPDATE THIS WITH SYSTEM FILE PATH
 ```{r}
 Frogs.diversity <- read.csv(system.file("extdata", "Frogs_diversity_allpops.csv", 
                                      package = "LandGenCourse"))
@@ -75,7 +74,6 @@ Frogs.diversity <- read.csv(system.file("extdata", "Frogs_diversity_allpops.csv"
 
 Import the genetic data for 29 sites: 
 
-UPDATE THIS WITH SYSTEM FILE PATH
 ```{r}
 Frogs.loci <- read.csv(system.file("extdata", "ralu_loci_allpops.csv", 
                                      package = "LandGenCourse"))
@@ -626,6 +624,57 @@ p.value = sapply(Frogs.moran, function(x) x$p.value)),3)
 - Sample size n had a negative value of Moran's I (obs). What does this mean?
 - Did all four variables show statistically significant spatial autocorrelation?
 
+## 7. R Exercise Week 5
+
+**Task:** Assess fine-scale spatial genetic structure in *Pulsatilla vulgaris* within a single patch, A25: Test for IBD with Mantel rank correlation, and use a Mantel correlogram to assess the range of spatial autocorrelation. 
+
+**Hints:**
+
+a) **Load packages**: You may want to load the packages `dplyr`, `EcoGenetics` and `adegenet`. Alternatively, you can use `::` to call functions from packages.
+
+b) **Import data, extract adults from A25**. 
+
+    - Use the code below to import the data into gstudio. 
+    - Inspect a few rows of the data.
+    - Filter the dataset to retain adults (OffID == 0) from site A25 (Population == "A25").
+
+```{r}
+Pulsatilla.gstudio <- gstudio::read_population(path=system.file("extdata",
+                            "pulsatilla_genotypes.csv", 
+                            package = "LandGenCourse"), 
+                    type="column", locus.columns=c(6:19), 
+                    phased=FALSE, sep=",", header=TRUE)
+```
+
+c) **Plot locations of individuals**: use `plot` with the argument `asp = 1` to plot the locations of the sampled individuals from site A25 to scale. 
+
+d) **Convert to ecogen and genind**: use `EcoGenetics::gstudio2ecogen` to convert to an `ecogen` object. From there, use `EcoGenetics::ecogen2genind` to convert to a `genind` object.
+
+e) **Calculate genetic and Euclidean distance**: 
+
+    - Use `adegenet::propShared` to calculate the proportion of shared alleles at the individual level. (Do not convert to genpop). 
+    - Convert to a distance measure by calculating `1 - propShared`.
+    - Check object class. If it is not `dist`, use `as.dist` to convert to a `dist` object.
+    - Use `dist` to calculate Euclidean distance between individuals.
+  
+f) **Mantel test**: 
+
+    - Adapt code from section 4.a to plot pairwise genetic distance against Euclidean distance. 
+    - Do you notice something unusial in the plot? Why are there so few different values of genetic distance?
+    - Do you think there is spatial autocorrelation? If so, up to what distance?
+    - Adapt code from section 4.b to test for IBD with a Mantel test, using Spearman rank correlation.
+
+g) **Mantel correlogram**: adapt code from section 5.a to create and plot a Mantel correlogram. Interpret the results.
+
+**Questions:** What is the range of spatial autocorrelation in *P. vulgaris* in site A25?
+
+- Based on a plot of genetic distance against Euclidean distance?
+- Based on where the Mantel correlogram reaches 0? 
+- Based on statistical significance tests for the Mantel correlogram (with default settings: one-sided alternative "less", Holm's adjustment)?
+
+
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 LandGenCourse::detachAllPackages()
 ```
+
+

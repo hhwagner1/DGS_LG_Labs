@@ -56,7 +56,7 @@ Pulsatilla.gstudio <- read_population(path=system.file("extdata",
 Note: `str` may create an error message "Error: $ operator is invalid for atomic vectors" - there seems to be some interference with other packages, depending on what files are open. It seems to run without error during `knit`, though. May use `as_tibble` instead.
 
 ```{r}
-str(Pulsatilla.gstudio)
+#str(Pulsatilla.gstudio)
 # Alternative
 as_tibble(Pulsatilla.gstudio) 
 ```
@@ -107,7 +107,8 @@ Pulsatilla.gstudio <- read_population(path=system.file("extdata",
                            package = "LandGenCourse"), 
                    type="column", locus.columns=c(6:19), 
                    phased=FALSE, sep=",", header=TRUE)
-str(Pulsatilla.gstudio)
+#str(Pulsatilla.gstudio)
+as_tibble(Pulsatilla.gstudio)
 ```
 
 ### c) Summarize by site
@@ -187,7 +188,7 @@ Pulsatilla.gstudio <- read_population(path=system.file("extdata",
                    phased=FALSE, sep=",", header=TRUE)
 ```
 
-### c) Count genotyped individuals
+### c) Count individuals
 
 ```{r}
 # Overall sample size:
@@ -200,7 +201,7 @@ nrow(Pulsatilla.gstudio[Pulsatilla.gstudio$OffID == 0,])
 Pulsatilla.gstudio %>% filter(OffID == 0) %>% nrow()
 ```
 
-### d) Drop offspring from dataset
+### d) Drop offspring 
 
 ```{r}
 # By indexing:
@@ -219,7 +220,7 @@ Adults.by.site <- split(Pulsatilla.adults, Pulsatilla.adults$Population)
 length(Adults.by.site)
 ```
 
-### f) Count adults per site with `sapply`
+### f) Count adults per site 
 
 ```{r}
 sapply(Adults.by.site, nrow)
@@ -242,7 +243,7 @@ Adults.genind
 summary(Adults.genind)
 ```
 
-### i) Test for HWE by site and locus
+### i) Test HWE by site & locus
 
 Note: while a few values are <0.05, there is not systematic pattern, i.e. no locus seems to be out of HWE across many site, and vice versa.
 
@@ -255,7 +256,7 @@ HWE.test.chisq <- t(data.matrix(HWE.test))
 round(HWE.test.chisq,3)}
 ```
 
-### k) Calculate Hexp and Hobs by site
+### k) Calculate Hexp, Hobs by site
 
 ```{r}
 Hexp <- t(sapply(seppop(Adults.genind), function(ls) summary(ls)$Hexp))
@@ -282,7 +283,230 @@ Site G05a had the lowest expected heterozygosity.
 
 # Week 4 
 
+
+### a) Load packages
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+### b) Import saved objects 
+
+```{r}
+Pulsatilla.longlat <- readRDS(paste0(here::here(), "/output/Pulsatilla.longlat.rds"))
+H.pop <- readRDS(paste0(here::here(), "/output/H.pop.rds"))
+```
+
+### c) Plot sites on map
+
+Plot the residuals on top of the map 'myMap':
+
+Basic map with points:
+
+```{r}
+myMap <- ggmap::qmplot(meanX, meanY,  data = as.data.frame(Pulsatilla.longlat), 
+                       source = "stamen", maptype = "toner-lite")
+```
+
+Modify code from 3.c to add labels and plot the map:
+
+```{r fig.height=5, fig.width=7, message=FALSE}
+myMap + ggplot2::geom_label(data = as.data.frame(Pulsatilla.longlat),
+                   mapping = ggplot2::aes(meanX, meanY, label = Population),
+                   size = 2.5, label.padding = unit(0.12, "lines"),
+                   col = "black", vjust = 0, nudge_x = 0, nudge_y = -0.005)
+```
+
+### d) Combine data
+
+Note: it is important here to work with the @data slot: Pulsatilla.longlat@data.
+
+Check structure of datasets (could also use `head` or `tibble::as_tibble` or simply print them).
+
+```{r}
+str(Pulsatilla.longlat@data)
+```
+```{r}
+str(H.pop)
+```
+
+Change variable type from factor to character: 
+
+```{r}
+H.pop$Pop <- as.character(H.pop$Pop)
+```
+
+Add data from `H.pop` to `Pulsatilla.longlat@data`. Here it is important to indicate the ID variable names ("Population" and "Pop") correctly, and to use the @data slot. 
+
+```{r}
+Pulsatilla.longlat@data <- dplyr::left_join(Pulsatilla.longlat@data, H.pop, by=c("Population" = "Pop"))
+```
+
+Note: if the variable types are not the same for the two ID variables, you'll get a warning: "Column `Population`/`Pop` joining character vector and factor, coercing into character vector". This is only a warning, not an error message, hence R will still perform the join. 
+
+### e) Scatterplot with line
+
+Either with base R...
+
+```{r}
+plot(Hexp ~ nIndiv, data=Pulsatilla.longlat, xlim=c(50, 130))
+abline(lm(Hexp ~ nIndiv, data=Pulsatilla.longlat))
+text(Pulsatilla.longlat@data$nIndiv, Pulsatilla.longlat@data$Hexp,
+     labels=Pulsatilla.longlat@data$Population, cex= 0.8, pos=4)
+```
+
+Or with ggplot:
+
+```{r}
+ggplot(Pulsatilla.longlat@data, aes(x=nIndiv, y=Hexp, label=Population)) + 
+  geom_point() + 
+  geom_smooth(method = lm, se = TRUE) +
+  geom_text(nudge_y=0.012, size=4, check_overlap=TRUE)
+```
+
+### f) Regression analysis
+
+Fit the model. 
+
+Note: here you can use either `data=Pulsatilla.longlat` or `data=Pulsatilla.longlat@data`.
+
+```{r}
+mod <- lm(Hexp ~ nIndiv, data=Pulsatilla.longlat)
+summary(mod)
+```
+
+The slope is not significant. Is the model valid? Checking residual plots:
+
+```{r fig.height=7, fig.width=8}
+par(mfrow=c(2,2))
+plot(mod, labels.id = Pulsatilla.longlat@data$Population)
+par(mfrow=c(1,1))
+```
+
+### Answers
+
+There is one influential point in the regression analysis:
+
+- Which site is it? - Site A25. 
+- Where is it located (north / east / south / west)? - In the (South-)West.
+- What makes it an influential point (large residual, leverage, or both)? - Leverage (outlier along x: very large census population size 'nIndiv')
+- What would happen to the regression line and the R-squared if this point was omitted? - The line would become much steeper, and the Rsquared would be much smaller. 
+
+
 # Week 5 
+
+a) **Load packages**: You may want to load the packages `dplyr`, `EcoGenetics` and `adegenet`. Alternatively, you can use `::` to call functions from packages.
+
+### a) Load packages
+
+```{r}
+library(adegenet)
+library(dplyr)
+library(EcoGenetics)
+```
+
+### b) Import data, extract A25 adults
+
+```{r}
+Pulsatilla.gstudio <- gstudio::read_population(path=system.file("extdata",
+                            "pulsatilla_genotypes.csv", 
+                            package = "LandGenCourse"), 
+                    type="column", locus.columns=c(6:19), 
+                    phased=FALSE, sep=",", header=TRUE)
+
+```
+
+Inspect a few rows:
+
+```{r}
+as_tibble(Pulsatilla.gstudio)
+```
+
+Filter adults (OffID == 0) to drop seeds, filter site A03:
+
+```{r}
+Adults.A25.gstudio <- Pulsatilla.gstudio %>% filter(OffID == 0, Population == "A25")
+```
+
+### c) Plot locations of individuals 
+
+```{r}
+plot(Adults.A25.gstudio$X, Adults.A25.gstudio$Y, asp=1)
+```
+
+### d) Convert to ecogen and genind
+
+Convert to `ecogen`:
+
+```{r}
+Adults.A25.ecogen <- EcoGenetics::gstudio2ecogen(Adults.A25.gstudio, ID = "ID", 
+                            lat = "X", lon = "Y")
+```
+
+Convert from `ecogen` to `genind`:
+
+```{r}
+Adults.A25.genind <- EcoGenetics::ecogen2genind(Adults.A25.ecogen)
+```
+  
+### e) Calculate genetic and Euclidean distances
+
+- Use individual-level function `propShared` for a `genind` object. 
+- Subtract from 1 to convert to distance measure.
+- Check class and convert to `dist` object.
+
+```{r}
+Dgen <- 1 - adegenet::propShared(Adults.A25.genind)
+class(Dgen)
+Dgen <- as.dist(Dgen)
+class(Dgen)
+```
+
+Calculate Euclidean distance from coordinates:
+
+```{r}
+Dgeo <- dist(EcoGenetics::ecoslot.XY(Adults.A25.ecogen))
+```
+
+### f) Mantel test
+
+```{r}
+par(mar=c(4,4,0,0))
+dens <- MASS::kde2d(as.vector(Dgeo), as.vector(Dgen), n=300)
+myPal <- colorRampPalette(c("white","blue","gold","orange","red"))
+plot(Dgeo, Dgen, pch=20, cex=0.5,  
+    xlab="Geographic Distance", ylab="Genetic Distance")
+image(dens, col=transp(myPal(300), 0.7), add=TRUE)
+abline(lm(Dgen ~ Dgeo))
+lines(loess.smooth(Dgeo, Dgen), col="red")
+```
+
+Test for IBD with Mantel rank correlation
+
+```{r}
+IBD <- vegan::mantel(Dgen,Dgeo, method="spearman")
+IBD
+```
+
+### g) Mantel correlogram
+
+```{r}
+corm <- EcoGenetics::eco.cormantel(M = Dgen, 
+        XY = ecoslot.XY(Adults.A25.ecogen),  nsim = 199, latlon=FALSE, 
+        alternative="less", method = "pearson", sequential=TRUE)
+corm
+```
+
+### Answers 
+
+What is the range of spatial autocorrelation in *P. vulgaris* in site A25?
+
+- Based on a plot of genetic distance against Euclidean distance: about 15 m
+- Based on where the Mantel correlogram reaches 0: < 10 m 
+- Based on statistical significance tests for the Mantel correlogram: about 8.3 m
+
+
 
 # Week 6 
 
