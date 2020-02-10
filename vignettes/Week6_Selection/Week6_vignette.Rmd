@@ -224,7 +224,7 @@ anova(mod4, mod.noFam, refit=FALSE)
 We can do a similar test for the fixed effecs. Here we have only one effect.
 
 ```{r}
-mod.noBlock <- lmer(d13c ~ 1  + (1 | population) + (1 | family), data=phen, REML=FALSE)
+mod.noBlock <- lmer(d13c ~ 1  + (1 | population) + (1 | family), data=phen, REML=TRUE)
 mod.noFam <- lmer(d13c ~ 1  + (1 | population) + block, data=phen, REML=TRUE)
 anova(mod4, mod.noBlock, refit=TRUE, REML=FALSE)
 ```
@@ -495,4 +495,64 @@ Questions:
 ```{r message=FALSE, warning=TRUE, include=FALSE}
 LandGenCourse::detachAllPackages()
 ```
+
+
+## 7. R Exercise Week 6
+
+**Task:** Test whether observed heterozygosity of *Pulsatilla vulgaris* adults depends on census population size. Fit a model at the individual level where you include a random effect for population.
+
+**Hints:**
+
+a) **Load packages**: 
+
+    - Please install the package `inbreedR` (to calculate individual measures of heterozygosity) from CRAN, if it is not yet installed.
+    - You may want to load the packages `dplyr` and `ggplot2`. Alternatively, you can use `::` to call functions from packages. 
+
+b) **Import data and extract adults**. 
+
+    - Use the code below to import the data.
+    - Use `dplyr::filter` to extract adults with `OffID == 0`.
+
+
+    `Pulsatilla <- read.csv(system.file("extdata","pulsatilla_genotypes.csv", 
+                            package = "LandGenCourse")`
+
+c) **Calculate multilocus heterozygosity**: Use package `inbreedR` to calculate multilocus heterozygosity for each adult. 
+
+    - Use the function `inbreedR::convert_raw(x)`, where x is the matrix of genotypes only (no ID or other non-genetic data), with two columns per locus. Check the help file of the function `convert_raw`.
+    - Use the function `inbreedR::MLH` to calculate observed heterozygosity for each individual. 
+    - Add the result as a variable `het` to the adults dataset.
+
+
+    Example code from `inbreedR::MLH` help file:
+  `data(mouse_msats)
+  genotypes <- convert_raw(mouse_msats)
+  het <- MLH(genotypes)`
+
+
+d) **Add population-level data**: 
+
+    - Import the file "pulsatilla_population.csv" with the code below. 
+    - Do a left-join to add the data to your adults dataset.
+    - Check the dataset.
+
+
+    `Pop.data <- read.csv(system.file("extdata", "pulsatilla_population.csv", 
+                            package = "LandGenCourse"))`
+
+e) **Scatterplot with regression line**: Use ggplot2 to create a scatterplot of adult heterozygosity against census population size (`population.size`), with a regression line.
+
+f) **Fit linear mixed model**: Adapt code from section 3.c to perform a regression of individual-level observed heterozygosity (response variable) on census population size (predictor), including population as a random effect. Fit the model with REML and print a summary.
+
+g) **Test fixed effect**: Adapt code from section 2.f to test the fixed effect with function `car::Anova`.
+
+h) **Check residual plots**: Adapt code from section 2.d to create residual plots. 
+
+
+**Questions:** There is one influential point in the regression analysis:
+
+- What was the direction of the relationship, did heterozygosity increase or decrease with census population size? 
+- Was the fixed effect statistically significant?
+- Was the model valid, or was there a problem with the residual plots?
+- What would be the main issue, and what remedy could you suggest?
 

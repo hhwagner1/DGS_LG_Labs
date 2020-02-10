@@ -507,8 +507,81 @@ What is the range of spatial autocorrelation in *P. vulgaris* in site A25?
 - Based on statistical significance tests for the Mantel correlogram: about 8.3 m
 
 
-
 # Week 6 
+
+
+### a) Load packages
+
+```{r}
+install.packages("inbreedR")
+library(inbreedR)
+library(dplyr)
+library(ggplot2)
+```
+
+### b) Import data and extract adults
+```{r}
+Pulsatilla.all <- read.csv(system.file("extdata", "pulsatilla_genotypes.csv", 
+                            package = "LandGenCourse"))
+Adults <- Pulsatilla.all %>% filter(OffID == 0)
+```
+
+### c) Calculate multilocus heterzygosity
+
+Here, we're dropping the first five columns because they contain non-genetic data.
+
+```{r}
+genotypes <- inbreedR::convert_raw(Adults[,-c(1:5)])
+Adults$het <- inbreedR::MLH(genotypes)
+```
+
+### d) Add population-level data
+
+```{r}
+Pop.data <- read.csv(system.file("extdata", "pulsatilla_population.csv", 
+                            package = "LandGenCourse"))
+Adults <- dplyr::left_join(Adults, Pop.data)
+tibble::as_tibble(Adults)
+```
+
+### e) Scatterplot with regression line
+
+```{r}
+ggplot(Adults, aes(population.size, het)) + geom_point() +
+  geom_smooth(method="lm")
+```
+
+### f) Fit linear mixed model
+
+```{r}
+mod <- lme4::lmer(het ~ population.size + (1|Population) , 
+                   data = Adults, REML = TRUE)
+summary(mod)
+```
+
+### g) Test fixed effect
+
+```{r}
+mod.ML <- lme4::lmer(het ~ population.size + (1|Population) , 
+                   data = Adults, REML = FALSE)
+car::Anova(mod.ML, type="II", test.statistic="Chisq")
+```
+
+### h) Check residual plots
+
+```{r}
+predictmeans::residplot(mod, group="Population", level=1)
+```
+
+### Answers
+
+Conclusions from fitting the LMM:
+
+- What was the direction of the relationship, did heterozygosity increase or decrease with census population size? - Heterozygosity decreased with census population size, which might be unexpected.
+- Was the fixed effect statistically significant? If not, do you think that statistical power was sufficient?- No, the p-value was > 0.05. However, there were only seven populations, and the predictor was measured at the population level.
+- Was the model valid, or was there a problem with the residual plots? - Yes, there was a problem with the residuals. 
+- What would be the main issue, and what remedy could you suggest? - Residuals were not normally distributed. The response behaves like a proportion, hence fitting a generalized model with family = "binomial" might help.
+
 
 # Week 7 
 
