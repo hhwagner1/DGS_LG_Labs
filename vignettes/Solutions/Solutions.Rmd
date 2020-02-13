@@ -406,7 +406,7 @@ library(dplyr)
 library(EcoGenetics)
 ```
 
-### b) Import data, extract A25 adults
+### b) Import, extract A25 adults
 
 ```{r}
 Pulsatilla.gstudio <- gstudio::read_population(path=system.file("extdata",
@@ -450,7 +450,7 @@ Convert from `ecogen` to `genind`:
 Adults.A25.genind <- EcoGenetics::ecogen2genind(Adults.A25.ecogen)
 ```
   
-### e) Calculate genetic and Euclidean distances
+### e) Genetic & Euclidean distances
 
 - Use individual-level function `propShared` for a `genind` object. 
 - Subtract from 1 to convert to distance measure.
@@ -513,20 +513,20 @@ What is the range of spatial autocorrelation in *P. vulgaris* in site A25?
 ### a) Load packages
 
 ```{r}
-install.packages("inbreedR")
+if(!require(inbreedR)) install.packages("inbreedR", repos='http://cran.us.r-project.org')
 library(inbreedR)
 library(dplyr)
 library(ggplot2)
 ```
 
-### b) Import data and extract adults
+### b) Import data, extract adults
 ```{r}
 Pulsatilla.all <- read.csv(system.file("extdata", "pulsatilla_genotypes.csv", 
                             package = "LandGenCourse"))
 Adults <- Pulsatilla.all %>% filter(OffID == 0)
 ```
 
-### c) Calculate multilocus heterzygosity
+### c) Multilocus heterzygosity
 
 Here, we're dropping the first five columns because they contain non-genetic data.
 
@@ -544,7 +544,7 @@ Adults <- dplyr::left_join(Adults, Pop.data)
 tibble::as_tibble(Adults)
 ```
 
-### e) Scatterplot with regression line
+### e) Scatterplot with line
 
 ```{r}
 ggplot(Adults, aes(population.size, het)) + geom_point() +

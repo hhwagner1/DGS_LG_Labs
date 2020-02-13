@@ -436,18 +436,21 @@ Note however that using additional evidence (e.g., population assignment tests),
 **Hints:**
 
 a) **Load packages**: You may want to load the packages `dplyr` and `ggplot2`. Alternatively, you can use `::` to call functions from packages.
+
 b) **Import your datasets from Weeks 2 & 3 R Exercises**. Here's an example for your code, adapt it as needed to import the R objects "Pulsatilla.longlat.rds" (SpatialPointsDataFrame, Week 2) and "H.pop.rds" (Week 3) that you saved previously:
 `Pulsatilla.longlat <- readRDS(paste0(here::here(), "/output/Pulsatilla.longlat.rds"))` 
 c) **Plot sites on map from internet**: To get started, you may use this code (note the names of the variables with the spatial coordinates): 
 `myMap <- ggmap::qmplot(x=meanX, y=meanY,  data = as.data.frame(Pulsatilla.longlat), source = "stamen", maptype = "toner-lite")`
 Next, modify code from section 3.d to add labels for all sites and plot the map.
+
 d) **Combine data**: Use the function `dplyr::left_join` to add the variables from the dataset `H.pop` to the data frame in the @data slot of `Pulsatilla.longlat`. Notes: 
 
     - This is important, as the order of populations may not be the same in the two datasets. 
     - Remember to check the structure of the datasets (variable names and types) first so that you know which are the ID variables that you can use to match sites. 
     - If the two ID variables are not of the same type (e.g., one if a `factor`, the other is `character`), it is best to change the format of one (e.g., with `as.character`) before doing the left-join.
 
-e) **Scatterplot with regression line**: Create a scatterplot of Hexp (y axis) plotted against nIndiv (x axis). Add a regression line and, if possible, label points. You may modify code from section 3.b  using the `ggplot2` package, or use base R functions.  
+e) **Scatterplot with regression line**: Create a scatterplot of Hexp (y axis) plotted against nIndiv (x axis). Add a regression line and, if possible, label points. You may modify code from section 3.b  using the `ggplot2` package, or use base R functions.
+
 f) **Regression analysis**: Adapt code from section 3.c to perform a regression of `Hexp` (response variable) on the predictor `nIndiv`. Create residual plots and inspect them. What is the main issue here? 
 
 **Questions:** There is one influential point in the regression analysis:

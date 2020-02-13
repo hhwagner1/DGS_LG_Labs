@@ -1,0 +1,88 @@
+---
+title: "Installing LandGenCourse"
+author: "Helene Wagner"
+output: 
+  html_document: 
+    toc: yes
+---
+
+# 1. Detach all packages except for a few basic ones
+
+```{r}
+detachAllPackages <- function() 
+{
+    basic.packages <- c("package:stats", "package:graphics", 
+        "package:grDevices", "package:utils", "package:datasets", 
+        "package:methods", "package:base")
+    package.list <- search()[ifelse(unlist(gregexpr("package:", 
+        search())) == 1, TRUE, FALSE)]
+    package.list <- setdiff(package.list, basic.packages)
+    if (length(package.list) > 0) 
+        for (package in package.list) detach(package, character.only = TRUE)
+}
+
+detachAllPackages()
+```
+
+# 2. Pre-install lots of packages from CRAN
+
+**Note:** if asked whether you want to restart R prior to package installation as some packages are loaded, try 'no'. 
+
+Here are the `Imports` from CRAN:
+
+```{r message=FALSE}
+install.packages(c("ade4", "adegenet", "base64enc", "BiocManager", "car", 
+                  "compiler", "cowplot", "data.table", "doParallel", "dplyr", 
+                  "EcoGenetics", "effsize", "formatR", "gdistance", 
+                  "GeNetIt", "geosphere", "ggmap", "ggplot2", "hierfstat", 
+                  "httpuv", "igraph", "landscapemetrics", "lattice", "lme4", 
+                  "maps", "mapplots", "maptools", "Matrix", "microbenchmark", 
+                  "miniUI", "mmod", "MuMIn", "mvtnorm", "nlme", "parallel", 
+                  "pegas", "PopGenReport", "poppr", "predictmeans", "proto", 
+                  "profvis", "purrr", "pwr", "RANN", "raster", "rasterVis", 
+                  "readr", "RColorBrewer", "remotes", "rio", "rlang",  
+                  "rmarkdown", "rstudioapi", "sampling", "seqinr", "sf", "shiny", 
+                  "spacetime", "sp", "spatialEco", "spatialreg", "spdep", 
+                  "spmoran", "SoDA", "stringi", "Sunder", "swirl", "swirlify",
+                  "testthat", "tibble", "usdm", "vegan"))
+```
+
+And a few more (`Suggests`):
+
+```{r}
+install.packages(c("checkpoint", "feather", "fields", "knitr", "tmaptools", 
+                   "ggeffects", "secr"))
+```
+
+# 3. Packages from Github
+
+Note: you may be asked of you want to install from source. Either way seems fine. 
+
+```{r}
+remotes::install_github("krlmlr/here")
+remotes::install_github("kjgilbert/QstFstComp")
+remotes::install_github("dyerlab/popgraph")
+remotes::install_github("dyerlab/gstudio")
+```
+
+# 4. Install `LandGenCourse`!
+
+```{r}
+remotes::install_github("hhwagner1/LandGenCourse")
+```
+
+# 5. Extra stuff 
+
+Bioclim: these will be installed for some worked examples
+
+```{r}
+BiocManager::install("LEA")
+BiocManager::install("qvalue")
+```
+
+This package can be difficult to install, it may need basic installation of gdal (outside of R), where IT support may be needed. 
+
+```{r}
+install.packages("rgdal")
+```
+
