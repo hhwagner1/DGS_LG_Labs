@@ -354,15 +354,17 @@ nlcd_subset
 
 The resulting `tibble` is easy to integrate into a workflow. For example, to get the ordered patch IDs of the 5% largest patches, the following code could be used.
 
-The pipe operator %>% from the `dplyr` package passes the resulting object automatically to the next function as first argument:
+The pipe operator %>% from the `dplyr` package passes the resulting object automatically to the next function as first argument. 
+
+Note: the last step (pulling the id variable only) could be done by adding this to the pipe: `%>% dplyr::pull(id)`. Due to some package inconsistencies, this sometimes created an error. Here we extract the id variable in a separate step as a work-around.
 
 ```{r}
 id_largest <- nlcd_patch %>% # previously calculated patch metrics
   dplyr::filter(metric == "area") %>% # only patch area
   dplyr::arrange(-value) %>% # order by decreasing size
-  dplyr::filter(value > quantile(value, probs = 0.95)) %>% # get only patches larger than 95% quantile
-  dplyr::pull(id) # get only patch id
+  dplyr::filter(value > quantile(value, probs = 0.95)) # get only patches larger than 95% quantile
 
+id_largest <- id_largest$id # get only patch id
 id_largest
 ```
 
@@ -525,20 +527,20 @@ To extract a metrics you can just `dplyr::filter()` the resulting `tibble` and p
 Here we filter the results for class == 42 (forest) and metric `pland` (percentage of landscape) and pull the results as a vector:
 
 ```{r}
-percentage_forest_500_a <- dplyr::pull(dplyr::filter(nlcd_sampled, 
-                                                     class == 42, 
-                                                     metric == "pland"), value)
-percentage_forest_500_a
+#percentage_forest_500_a <- dplyr::pull(dplyr::filter(nlcd_sampled, 
+#                                                     class == 42, 
+#                                                     metric == "pland"), value)
+#percentage_forest_500_a
 ```
 
-As an alternative, here's the same workflow again, but using a pipe:
+As an alternative, here's the same workflow again, but using a pipe and avoiding the function pull that sometimes created an error:
 
 ```{r}
 percentage_forest_500_b <- nlcd_sampled %>% 
   dplyr::filter(class == 42, 
-                metric == "pland") %>% 
-  dplyr::pull(value)
-percentage_forest_500_b
+                metric == "pland") 
+percentage_forest_500_b <-percentage_forest_500_b$value
+percentage_forest_500_b 
 ```
 
 ### c) Extract landscape metric of choice for all cover types (as data frame). 
