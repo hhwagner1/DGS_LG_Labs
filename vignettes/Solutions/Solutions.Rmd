@@ -585,4 +585,158 @@ Conclusions from fitting the LMM:
 
 # Week 7 
 
+### a) Load packages 
+    
+    ```{r}
+library(dplyr)
+library(ggplot2)
+library(nlme)
+```
+
+### b) Import data, add coordinates 
+
+```{r}
+# Dataset with variables 'flower.density' and 'mom.isolation' for each mom:
+Moms <- read.csv(system.file("extdata",
+                            "pulsatilla_momVariables.csv", 
+                            package = "LandGenCourse"))
+
+# Dataset with spatial coordinates of individuals:
+Pulsatilla <- read.csv(system.file("extdata",
+                            "pulsatilla_genotypes.csv", 
+                            package = "LandGenCourse"))
+Adults <- Pulsatilla %>% filter(OffID == 0)
+
+# Combine data
+Moms <- left_join(Moms, Adults[,1:5])
+
+# Remove replicate flowers sampled from the same mother
+Moms <- Moms %>% filter(OffID == 0)
+```
+
+### c) Explore data 
+
+There are few mothers per population, however, if we can pool them among populations, we have n = 43 moms. Note that some populations have very few sampled moms.
+
+```{r}
+sum(table(Moms$Population))
+Moms %>% group_by(Population) %>% summarize(n=n())
+```
+
+Both variables are strongly right-skewed:
+
+```{r}
+Histogram1 <- ggplot(Moms, aes(x=flower.density)) + geom_histogram(binwidth=5)
+Histogram2 <- ggplot(Moms, aes(x=mom.isolation)) + geom_histogram(binwidth=4)
+
+gridExtra::grid.arrange(Histogram1, Histogram2, nrow=1)
+```
+
+### d) Create scatterplots 
+
+The double-logarithm transformation helps linearize the relationship for these data.
+
+```{r}
+myPlot <- ggplot(Moms, aes(x=mom.isolation, y=flower.density)) + 
+  geom_point() 
+gridExtra::grid.arrange(myPlot, myPlot + coord_trans(x="log", y="log"), nrow = 1)
+```
+
+### e) Scatterplot with line
+
+```{r}
+myPlot <- ggplot(Moms, aes(x=log(mom.isolation), y=log(flower.density))) + 
+  geom_point() + geom_smooth(method="lm")
+myPlot
+```
+
+### f) Fit non-spatial models
+
+```{r}
+mod.lm.REML <- gls(log(flower.density) ~ log(mom.isolation), 
+                         data = Moms, method="REML")
+mod.lme.REML <- lme(log(flower.density) ~ log(mom.isolation),  
+                             random = ~ 1 | Population, data = Moms, method="REML")
+```
+
+### g) Plot residual variograms
+
+The variogram for the lm-type model, without random effect, calculates distances within and between populations. The variogram is driven by comparisons between patches, whereas we are interested in spatial autocorrelation within patches. The variogram with the random effect only considers pairs within populations, hence the maximum distance lag here is around 30 m. This model clearly shows positive spatial autocorrelation over the first 5 or so meters. However, this resulted in a massive loss of pairs: the first variogram had 45 pairs per lag, the second had 6!
+
+```{r}
+semivario <- Variogram(mod.lm.REML, form= ~ X + Y, resType = "normalized")
+Plot1 <- plot(semivario, smooth = TRUE)
+semivario
+```
+
+```{r}
+semivario <- Variogram(mod.lme.REML, form= ~ X + Y, resType = "normalized")
+Plot2 <- plot(semivario, smooth = TRUE)
+semivario
+```
+```{r}
+gridExtra::grid.arrange(Plot1, Plot2, nrow = 1)
+```
+
+### h) Add correlation structure
+
+The corGaus and corRatio models fit best. The non-spatial models fit worst.
+
+```{r}
+mod.lm.REML <- gls(log(flower.density) ~ log(mom.isolation), 
+                     data = Moms, method="REML")
+mod.lme.REML <- lme(log(flower.density) ~ log(mom.isolation), 
+                     random = ~ 1| Population, data = Moms, method="REML")
+mod.corExp<- update(mod.lme.REML, correlation = nlme::corExp(form = ~ X + Y, nugget=T))
+mod.corGaus<- update(mod.lme.REML, correlation = nlme::corGaus(form = ~ X + Y, nugget=T))
+mod.corSpher<- update(mod.lme.REML, correlation = nlme::corSpher(form = ~ X + Y, nugget=T))
+mod.corRatio<- update(mod.lme.REML, correlation = nlme::corRatio(form = ~ X + Y, nugget=T))
+
+MuMIn::model.sel(mod.lm.REML, mod.lme.REML, mod.corExp, mod.corGaus, mod.corSpher, mod.corRatio)
+```
+
+### i) Check residual plots 
+
+The intercepts for populations (Random Intercepts) seem more or less normally distributed, as are the residuals. The variance is constant (Residuals vs Fitted), with a slight indication of non-linearity (tendency for positive residuals for low and high fitted values, negative for intermediate) but not troubling. The highest values tended to be underestimated (Fitted vs Observed).
+
+```{r}
+predictmeans::residplot(mod.corGaus)
+```
+The residual variogram is not smooth, and it still seems to increase a bit. Keep in mind that our sample size here is very small, especially as we are only considering pairs within populations. The default settings here result in only 6 pairs per distance class!
+
+```{r}
+semivario <- nlme::Variogram(mod.corGaus, form= ~ X + Y, resType = "normalized")
+Plot3 <- plot(semivario, smooth = TRUE)
+
+Fitted.variog <- nlme::Variogram(mod.corGaus)
+Plot4 <- plot(Fitted.variog)
+
+gridExtra::grid.arrange(Plot3, Plot4, nrow = 1)
+```
+
+
+### k) Test fixed effect
+
+The fixed effect was statistically significant.
+
+```{r}
+car::Anova(update(mod.corGaus, method="ML"))
+```
+
+### l) Get marginal R-squared
+
+The marginal R-squared was 45%, which is a very strong effect. This would be expected: isolated plants will have few conspecific flowers nearby.
+
+```{r}
+MuMIn::r.squaredGLMM(mod.corGaus)
+```
+
+### Answers:
+
+- The relationship between flower density and isolation (both log-transformed) was linear, negative, very strong (45%), and statistically significant. 
+- Yes: Both variables were strongly skewed, and their relationship not linear. The double logarithm transformation linearized the relationship.
+- Yes: The models with spatial correlation structure performed better than the non-spatial models. I did not do a formal test for residual spatial autocorrelation though.
+- Yes: This way, the variogram was only fitted to pairs within the same population (pooled across all 7 populations). 
+
+
 # Week 8 
