@@ -740,3 +740,130 @@ MuMIn::r.squaredGLMM(mod.corGaus)
 
 
 # Week 8 
+
+### a) Load packages
+
+```{r}
+library(dplyr)
+library(gstudio)
+```
+
+
+### b) Import data, extract adults 
+
+```{r}
+Pulsatilla.gstudio <- gstudio::read_population(path=system.file("extdata",
+                            "pulsatilla_genotypes.csv", 
+                            package = "LandGenCourse"), 
+                    type="column", locus.columns=c(6:19), 
+                    phased=FALSE, sep=",", header=TRUE)
+Adults.gstudio <- Pulsatilla.gstudio %>% filter(OffID == 0)
+
+```
+
+### c) Sort individuals by patch 
+
+```{r}
+# Add new variable Names:
+Adults.gstudio$Names <- paste(Adults.gstudio$Population, Adults.gstudio$ID, sep=".")
+
+# Sort alphabetically by Names:
+Adults.gstudio <- dplyr::arrange(Adults.gstudio, Names)
+```
+
+### d) Calculate Euclidean distances
+
+Note: code may differ as there are various options for identifying and specifying the correct columns to use.
+
+```{r}
+coords <- which(is.element(names(Adults.gstudio), c("X", "Y"))) 
+Dgeo <- as.matrix(dist(Adults.gstudio[,coords]))
+```
+
+### e) Calculate genetic distances
+
+```{r}
+Dgen <- 1 - as.matrix(gstudio::genetic_distance(Adults.gstudio, stratum="Names", mode="dps"))
+```
+
+### f) Plot distances, calculate M.rho
+
+Note: if plotting full matrix, the diagonal elements will be included. These may be '1' for Dgen because of the subtraction from 1 to convert to distances.
+
+The distances mostly reflect distances between populations. The within-patch comparisons are all lumped in the very first 'column', more or less at x = 0. Note: the response variable has a limited number of values because the proportion of shared alleles, based on seven markers, can only take a limited set of values.
+
+```{r}
+plot(as.dist(Dgen) ~ as.dist(Dgeo))
+cor(as.dist(Dgen), as.dist(Dgeo), method="spearman", use="complete.obs")
+```
+
+### g) Limit to within-patch pairs
+
+```{r}
+SamePatch <- outer(Adults.gstudio$Population, Adults.gstudio$Population, FUN = "==")
+SamePatch[SamePatch == "FALSE"] <- NA
+Dgeo.within <- SamePatch * Dgeo
+```
+
+Plot:
+```{r}
+plot(as.dist(Dgen) ~ as.dist(Dgeo.within))
+```
+
+Mantel rank correlation Cor.obs:
+
+Note: this should be about 0.172. If it is lower (e.g. around 0.12), then there may be a sorting issue. Check that individuals were sorted by Names in step c).
+```{r}
+Cor.obs <- cor(as.dist(Dgen),as.dist(Dgeo.within), method="spearman", use="complete.obs")
+Cor.obs
+```
+
+### h) Unrestricted permutation test
+
+```{r}
+Order <- c(1:nrow(Adults.gstudio))
+```
+
+Unrestricted permutation: this permutes individuals within or among patches.
+```{r}
+R = 499
+Cor.perm.unrestricted <- rep(NA, R)
+for(r in 1:R)
+{
+  a <- sample(Order)
+  Cor.perm.unrestricted[r] <- cor(as.dist(Dgen[a,a]),as.dist(Dgeo.within),
+                                  method="spearman", use="complete.obs")
+}
+approx.p.unrestricted <- mean(c(Cor.obs, Cor.perm.unrestricted) >= Cor.obs)
+approx.p.unrestricted
+```
+
+### i) Restricted permutation test
+
+This permutes individuals only within patches.
+
+```{r}
+R = 499
+Cor.perm.restricted <- rep(NA, R)
+b <- split(Order, Adults.gstudio$Population)
+for(r in 1:R)
+{
+  a <- unlist(sapply(b, sample))
+  Cor.perm.restricted[r] <- cor(as.dist(Dgen[a,a]),as.dist(Dgeo.within), 
+                                method="spearman", use="complete.obs")
+}
+approx.p.restricted <- mean(c(Cor.obs, Cor.perm.restricted) >= Cor.obs)
+approx.p.restricted
+```
+
+### k) Compare results
+
+```{r}
+boxplot(data.frame(Unrestricted = Cor.perm.unrestricted, Restricted = Cor.perm.restricted))
+lines(c(0,5), c(0,0), lty=2)
+```
+
+### Answers: 
+
+- The observed values of M.rho is not affected by the test at all, so these should not change. The p-value could change because it depends on the simulated reference distribution. In this case, it did not change because for both tests, none of the simulated values was larger or equal the observed one.
+- For the unrestricted test, the distribution was centered around zero, which is what we would expect under the null hypothesis of no correlation (i.e., absense of spatial genetic structure). However, for the restricted test, the distribution was centered around 0.55, with most values positive. The explanation is not so simple, because we still have the null hypothesis of no spatial genetic structure within populations. However, some populations were small in terms of number of idividuals sampled and also patch size and thus maximum distance between individuals. Thus only a few larger patches would have contributed to larger within-patch distances, and there may be confounding by differences in diversity between patches. The restricted permutation test should take care of all these issues.
