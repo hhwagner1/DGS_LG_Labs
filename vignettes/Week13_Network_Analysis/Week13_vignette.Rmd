@@ -27,6 +27,11 @@ In this exercise, you will use the gravity model framework to build an empirical
 
 Several data files are included with the GeNetIT package:
 
+<<<<<<< HEAD
+### c) Required R libraries
+
+All required packages have already been installed with LandGenCourse.
+=======
 - **Dps**: genetic distance in proportion of shared alleles.
 - **ralu.site**: this is a shape file with wetland data and spatial locations
 - **rasters**: 30 m rasters of landscape variables. 
@@ -35,10 +40,21 @@ Several data files are included with the GeNetIT package:
 ### c) Required R libraries
 
 All required packages should have been installed already when you installed 'LandGenCourse'.
+>>>>>>> parent of fb51c69... Revised WE 13
 
 ```{r packages global_options, include=TRUE, results="hide", message=FALSE, warning=FALSE}
 library(LandGenCourse)
 library(sp)
+<<<<<<< HEAD
+#library(landscapemetrics)
+#library(raster)
+#library(rgdal)
+#library(GeNetIt)
+#library(spatialEco)
+#library(GeNetIt)
+#library(igraph)
+#library(deldir)
+=======
 #require(raster)
 #require(rgdal)
 #require(GeNetIt)
@@ -47,6 +63,7 @@ library(sp)
 #require(RANN)
 #require(spatialEco)
 #require(GeNetIt)
+>>>>>>> parent of fb51c69... Revised WE 13
 ```
 
 ### d) Import data
@@ -219,10 +236,42 @@ str(dist.graph@data)
 
 **Question 4**: We know functional connectivity of organisms (animals,  pollen/seeds) are influenced by more than a 30 m line.  How might we account for this reality within this modeling framework?
 
+<<<<<<< HEAD
+Create a raster of the proportion of landscape (PLAND) that is wetland, using a 300 m radius. 
+=======
 ## 4. Fit gravity model 
+>>>>>>> parent of fb51c69... Revised WE 13
 
 Now we are ready for the actual gravity model analysis. There are a few things to remember:
 
+<<<<<<< HEAD
+- What happens if you change this radius?  
+- What radius do you think makes the most sense ecologically?
+
+Here we adapt code from Week 2 Worked Example.
+
+```{r}
+nlcd_sampled <- landscapemetrics::sample_lsm(landscape = xvars[["wetlnd"]], 
+                                                   what = "lsm_c_pland",
+                                                   shape = "circle",
+                                                   y = sites, 
+                                                   size = 300, 
+                                                   return_raster = FALSE,
+                                                   plot_id=sites@data$SiteID)
+pwetland <- dplyr::select(dplyr::filter(nlcd_sampled, class == 1, 
+                                        metric == "pland"), plot_id, value)  
+names(pwetland) <- c("SiteID", "pwetland")
+pwetland$pwetland <- pwetland$pwetland/100
+head(pwetland)
+```
+
+Important: there could be cases with no wetlands (where prop.landscape should be zero), which will result in missing rows in `pwetland`. Here we use `left_join` to join rows withi `sites` by `SiteID`, then replace missing values by 0.
+
+```{r}
+sites@data <- dplyr::left_join(sites@data, pwetland)
+sites@data$pwetland[is.na(sites@data$pwetland)] <- 0
+head(sites@data)
+=======
 1.	In order to solve the gravity form, we take the natural log of all dependent and independent variables.  
 2.	The dependent variable (y) is the genetic distance ($T_{ij}$ in the gravity model).
 3.	The independent variables (x) fall into the three components of the gravity model: 
@@ -251,6 +300,7 @@ Combine data:
 cdata <- merge(dist.graph, site, by.x="from_ID", by.y="SiteName") 
 cdata$Dps <- 1 - cdata$Dps
 cdata <- cdata@data
+>>>>>>> parent of fb51c69... Revised WE 13
 ```
 
 ### b) Specify and fit gravity model  
