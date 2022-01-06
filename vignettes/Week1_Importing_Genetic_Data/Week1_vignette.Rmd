@@ -35,7 +35,18 @@ This code imports genetic data from 181 individuals of Colombia spotted frogs (R
 
 ### c) Required R libraries
 
-All required packages should have been installed already when you installed 'LandGenCourse'.
+Install some packages needed for this worked example. Note: `popgraph` needs to be installed before installing `gstudio`.
+
+```{r}
+if(!require("adegenet")) install.packages("adegenet")
+if(!requireNamespace("popgraph", quietly = TRUE))
+{
+  install.packages(c("RgoogleMaps", "geosphere", "proto", "sampling", 
+                      "seqinr", "spacetime", "spdep"), dependencies=TRUE)
+  remotes::install_github("dyerlab/popgraph")
+}
+if(!requireNamespace("gstudio", quietly = TRUE)) remotes::install_github("dyerlab/gstudio")
+```
 
 Note: the function `library` will always load the package, even if it is already loaded, whereas `require` will only load it if it is not yet loaded. Either will work.
 
@@ -224,7 +235,7 @@ The summary lists each attribute or `slot` of the `genind` object and summarizes
 Table with allele counts, where each column is an allele. Allele name `A.1` means "locus A, allele 1". For a codominant marker (e.g. microsatellite) and a diploid species, allele counts per individual can be 0, 1, 2, or NA=missing. Here are the first few lines:
 
 ```{r}
-as.tibble(Frogs.genind@tab)
+as_tibble(Frogs.genind@tab)
 ```
 
 ### b) Slot @loc.n.all

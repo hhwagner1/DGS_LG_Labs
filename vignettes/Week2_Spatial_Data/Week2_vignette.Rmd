@@ -47,6 +47,12 @@ We will extract values at sampling point locations and within a local neighborho
 
 ### c) Required R libraries
 
+Install some packages needed for this worked example.
+
+```{r}
+if(!requireNamespace("GeNetIt", quietly = TRUE)) remotes::install_github("jeffreyevans/GeNetIt")
+```
+
 ```{r message=FALSE, warning=TRUE}
 library(LandGenCourse)
 library(landscapemetrics)
@@ -55,12 +61,6 @@ library(sp)
 library(raster)
 library(GeNetIt)
 library(tibble)
-```
-
-Package `tmaptools` not automatically installed with `LandGenCourse`:
-
-```{r message=FALSE, warning=TRUE}
-if(!require(tmaptools)) install.packages("tmaptools")
 ```
 
 ## 2. Import site data from .csv file
@@ -114,24 +114,23 @@ Before we can combine the sampling locations with other spatial datasets, such a
 
 For more information on CRS, see: https://www.nceas.ucsb.edu/~frazier/RSpatialGuides/OverviewCoordinateReferenceSystems.pdf
 
-We know that these coordinates are UTM zone 11 (Northern hemisphere) coordinates, hence we can use a helper function to find the correct `proj4string`, using function `get_proj4` from the `tmaptools` package. (For the Southern hemisphere, you would add `s` after the zone: `utm11s`). Here we call the function and the package simultaneously (this is good practice, as it helps keep track of where the functions in your code come from).
+We know that these coordinates are UTM zone 11 (Northern hemisphere) coordinates. We define it here by its EPSG code (32611). You can search for EPSG codes here: https://epsg.io/32611.
+
+Here we call the function and the package simultaneously (this is good practice, as it helps keep track of where the functions in your code come from).
 
 ```{r}
-proj4string(Sites.sp) <- tmaptools::get_proj4("utm11")$proj4string
+sp::proj4string(Sites.sp) <- sp::CRS(SRS_string = "EPSG:32611")
 ```
 
 Note: this function only **declares** the existing projection, it does not change the coordinates to that projection. 
 
-If we had longitude and latitude coordinates, we would modify the command like this: 
-proj4string(Sites.sp) <- tmaptools::get_proj4(“longlat”)$proj4string.
-
 ### c) Change projection
 
-In case we needed to **transform** the projection from UTM zone 11 to longitude/latitude, we could create a new sp object `Sites.sp.longlat`. We use the function `spTransform` to change the projection from the projection of the old object `Sites.sp` to the "longlat" coordinate system, which we define by the argument `CRSobj`.
+In case we needed to **transform** the projection from UTM zone 11 to longitude/latitude (EPSG code: 4326), we could create a new `sp` object `Sites.sp.longlat`. We use the function `spTransform` to change the projection from the projection of the old object `Sites.sp` to the "longlat" coordinate system, which we define by the argument `CRSobj`.
 
 ```{r}
 Sites.sp.longlat <- sp::spTransform(Sites.sp, 
-                      CRSobj = tmaptools::get_proj4("longlat")$proj4string)
+                      CRSobj = sp::CRS(SRS_string = "EPSG:4326"))
 head(Sites.sp.longlat@coords)
 ```
 
@@ -354,15 +353,17 @@ nlcd_subset
 
 The resulting `tibble` is easy to integrate into a workflow. For example, to get the ordered patch IDs of the 5% largest patches, the following code could be used.
 
-The pipe operator %>% from the `dplyr` package passes the resulting object automatically to the next function as first argument:
+The pipe operator %>% from the `dplyr` package passes the resulting object automatically to the next function as first argument. 
+
+Note: the last step (pulling the id variable only) could be done by adding this to the pipe: `%>% dplyr::pull(id)`. Due to some package inconsistencies, this sometimes created an error. Here we extract the id variable in a separate step as a work-around.
 
 ```{r}
 id_largest <- nlcd_patch %>% # previously calculated patch metrics
   dplyr::filter(metric == "area") %>% # only patch area
   dplyr::arrange(-value) %>% # order by decreasing size
-  dplyr::filter(value > quantile(value, probs = 0.95)) %>% # get only patches larger than 95% quantile
-  dplyr::pull(id) # get only patch id
+  dplyr::filter(value > quantile(value, probs = 0.95)) # get only patches larger than 95% quantile
 
+id_largest <- id_largest$id # get only patch id
 id_largest
 ```
 
