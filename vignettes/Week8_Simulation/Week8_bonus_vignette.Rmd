@@ -171,7 +171,7 @@ Note: Here we execute each function only once to save time, typically you would 
 ```{r microbenchmark1, message=FALSE}
 x = myFile
 microbenchmark::microbenchmark(times = 1, unit = "ms", 
-          read.csv(x), readr::read_csv(x), data.table::fread(x),
+          read.csv(x), readr::read_csv(x, show_col_types = FALSE), data.table::fread(x),
           rio::import(x))
 ```
 
@@ -183,7 +183,7 @@ Note: you can list several independent commands on the same line by separating t
 library(readr); library(data.table); library(rio); library(microbenchmark)
 
 microbenchmark(times = 1, unit = "ms", 
-          read.csv(x), read_csv(x), fread(x), import(x))
+          read.csv(x), read_csv(x, show_col_types = FALSE), fread(x), import(x))
 ```
 
 Yes, the import was faster when the packages were already loaded.
@@ -204,7 +204,7 @@ Note: here we use double square brackets to subset the first column. Strictly sp
 
 ```{r class, message=FALSE}
 gen <- read.csv(x); c(class(gen[[1]]), class(gen))
-gen <- read_csv(x); c(class(gen[[1]]), class(gen))
+gen <- read_csv(x, show_col_types = FALSE); c(class(gen[[1]]), class(gen))
 gen <- fread(x); c(class(gen[[1]]), class(gen))
 gen <- import(x); c(class(gen[[1]]), class(gen))
 ```
@@ -461,10 +461,10 @@ file.show(outFile)
 - What happened to the titles and text?
 - What about the header information?
 
-Now we can pass the file to `profvis':
+Now we can pass the file to `profvis` (uncomment by removing hashtag `#` to run code):
 
 ```{r profvis3}
-profvis::profvis(source(outFile), prof_output=file.path(here::here(), "output/output.prof"))
+#profvis::profvis(source(outFile), prof_output=file.path(here::here(), "output/output.prof"))
 ```
 
 **Question**: Which lines of code took the longest to run in this example?
