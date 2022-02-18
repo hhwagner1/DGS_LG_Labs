@@ -128,6 +128,40 @@ Dianthus.ecogen <- EcoGenetics::ecogen(XY = GenData[,c("LAT", "LONG")],
                    set.names = GenData[,1], sep=":", type="codominant")
 Dianthus.ecogen
 
+
+# NEW February 2022: via gstudio
+# ------------------------------
+
+GenData.gstudio <- read_population("~/Desktop/R_GitHub_Projects/DGS_LG_Labs/vignettes/Week7_Spatial_Linear_Models/Dianthus_carthusianorum_genodata_Dec15_2013_NA.csv", locus.columns=c(6:27), type="column")
+
+Dianthus.genind <- adegenet::df2genind(X=GenData.gstudio[,c(6:16)], 
+                    sep=":", ncode=NULL, ind.names=GenData.gstudio$SampleID., 
+                    loc.names=NULL, pop=GenData.gstudio$PatchID, 
+                    NA.char="", ploidy=2, type="codom", 
+                    strata=NULL, hierarchy=NULL)
+
+# Convert to genpop
+
+Dianthus.genpop <- genind2genpop(Dianthus.genind)
+Dgen <- as.matrix(dist.genpop(Dianthus.genpop, method=2))
+
+# Select rows of distance matrices
+a <- rep(NA, nrow(Dgen))
+for(i in 1:nrow(Dgen))
+{
+  #a[i] <- grep(rownames(Dgen)[i], rownames(dModels$Eu))
+  a[i] <- which(is.element(rownames(dModels$Eu), rownames(Dgen)[i]))
+}
+table(rownames(Dgen) == rownames(dModels$Eu)[a])
+
+
+
+
+
+# Convert to ecogen object:
+
+genind2ecogen(Dianthus.genind, NA.char="NA")
+
 # Convert lat-lon coordinates:
 # ----------------------------
 Dianthus.ecogen@XY <- cbind(Dianthus.ecogen@XY, 
@@ -164,8 +198,11 @@ for(i in 1:nrow(Dianthus.ecogen@S))
 {
     a[i] <- grep(Dianthus.ecogen@S$PatchID[i], SiteData$Label)  
 }
-
 Dianthus.ecogen.subset <- Dianthus.ecogen[!is.na(a),]
+
+# New Feb. 2022:
+a <- which(is.element(Dianthus.ecogen@S$PatchID, SiteData$Label))
+Dianthus.ecogen.subset <- Dianthus.ecogen[a]
 
 # Copy site data into ecogen slot E
 # ---------------------------------

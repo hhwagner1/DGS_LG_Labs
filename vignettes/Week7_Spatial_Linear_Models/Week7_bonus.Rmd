@@ -1,0 +1,336 @@
+---
+title: "Week 7: Bonus Materials"
+author: "Yessica Rico and Helene Wagner"
+date: "`r Sys.Date()`"
+show_toc: true
+output:
+  knitr:::html_vignette:
+    toc: yes
+    fig_width: 4 
+    fig_height: 3.5
+vignette: >
+  %\VignetteIndexEntry{Week 7: Bonus Materials}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+## 1. Overview of Bonus Materials
+
+This bonus vignette has four parts
+
+- Calculation of the Si index variables for the `Dianthus` data
+- Analysis of the `Dianthus` data with MLPE
+- Accounting for spatial autocorrelation when fitting the MLPE
+
+## 2. Calculation of the Si index variables for the Dianthus data
+
+The Week 7 Worked Example used patch-level values of an Si index as predictors. Here we show how these were calculated from distance matrices. 
+
+### a) Import ecological distance matrices
+
+Each distance matrix represents one hypothesis about gene flow in this system (see Week 7 video). 
+
+- **Eu**: Euclidean (geographic) distance, representing IBD
+- **Shecte**: Connectivity by shepherding among consistently grazed patches only, distance-dependent: this counts the number of patches that sheep traverse to get from patch A to patch B. 
+- **Sheint**: Connectivity by shepherding, among consistently or intermittently grazed patches, distance-dependent: again, this counts the number of patches that sheep traverse to get from patch A to patch B. 
+- **Shenu**: Connectivity by shepherding, no distance effect. This considers only whether or not two patches are part of the same grazing system.  
+- **Forest**: This model is similar to Eu but considers forest as a barrier.
+
+Here, we import these distance matrices as a list of `dist` objects and check their names and dimensions: each has 106 rows and columns.  
+
+HW: ADJUST PATH! Include dataset in LandGenCourse
+
+```{r}
+dModels <- readRDS(file=paste0(here::here(), 
+              "/vignettes/Week7_Spatial_Linear_Models/dModels.rds"))     
+sapply(dModels, function(ls) dim(as.matrix(ls)))
+```
+Note: the distance matrices contain 106 patches. All of these are considered as source populations. However, we will only calculate Si indices for the 65 patches included in the Dianthus dataset. 
+
+### b) Optimize scaling parameter alpha
+
+In order to calculate Hanski's index, we first need to optimize the value of alpha for each distance model, using presence-absence data for the two time steps of 1989 and 2009. 
+
+Import the patch-level data for all 106 patches in the study area.
+
+HW CHECK PATH
+```{r}
+Patches <- read.csv(paste0(here::here(),                                "/vignettes/Week7_Spatial_Linear_Models/PATCH_XY_Dianthus.csv"),
+         header=TRUE, row.names=1)
+```
+Check that the patch IDs match between `Patches` and the distance matrices. Here we tabulate the number of rows for which the patch names match perfectly. This is the case for all 106 rows, which is great.
+
+```{r}
+table(Patches$patch == rownames(dModels$Eu))
+```
+
+The function 'get.alphafit' optimizes alpha for each model and stores the values in  table 'table.alpha.
+
+- First, we create an empty matrix (with a single column and five rows, one per model) to hold the optimized alpha value for each model (i.e., for each distance matrix).
+- We define the list of values of alpha that should be considered. Here we will use `nseq=100` values between 0.1 and 2.5.
+- Then we define the function get.alphafit that will take four arguments:
+  - alpha: scaling parameter of the exponential function
+  - d: distance matrix
+  - pj: whether or not the species was recorded in a patch in the second survey.
+  - Op: number of surveys (out of two) that the species was recorded in the patch.
+
+```{r}
+table.alpha <- matrix(NA, nrow=5)
+dimnames(table.alpha) <- list(models=(names(dModels)))
+
+nseq = 100
+alpha = seq(0.1,2.5, length = nseq)
+
+get.alphafit <- function(alpha, d, pj, Op)
+{
+  expo<-exp(-alpha* d )
+  diag(expo)<-0
+  matr<-sweep(expo,2, pj, "*")
+  Si <-rowSums(sweep(matr, 2, Op/2, "*"), na.rm=TRUE)
+  mod<- glm(cbind(Op,2 -Op) ~ Si, family=binomial)
+  deviance(mod)
+}
+``` 
+     
+Apply the function to optimize alpha.  
+
+```{r}
+pj <- Patches$Dc.09
+Op <- (Patches$Dc.89 + Patches$Dc.09)
+for(m in 1:length(dModels))
+{
+  table.alpha[m] <- (optimize(get.alphafit, interval=alpha,
+                              d=as.matrix(dModels[[m]]), pj, Op)$minimum)
+}
+table.alpha
+``` 
+
+These are the optimized scaling parameters alpha of the distance term in the incidence function $S_{i}$, where $p_{j}$ is 1 if the species is present in source population j and 0 if it is absent, and $d_{ij}$ is the pairwise distance between source patch j and focal patch i: 
+
+$S_{i}$ = $\sum_{j\neq i} exp(-\alpha d_{ij})p_{j}$
+
+### c) Calculate Hanski's index Si with source patch parameters
+
+We will consider there alternative source patch parameters
+
+- $p_{j}$: whether or not the species was observed in 2009.
+- $A_{j}$: area of the patch in ha.
+- $N_{j}$: indicator of population size. This was recorded in the field in four ordinal categories:
+    - 1: <4     (too few to treat as population)
+    - 2: 4-40   (small enough for complete sampling)
+    - 3: 41-100 (small enough to count)
+    - 4: >100   (very large)
+     
+Note that here, $N_{j}$ is treated as a numeric variable. While this is an over-interpretation, though preliminary analyses showed that this linearized the relationships between variables.
+
+```{r}
+pj <- Patches$Dc.09
+Aj <- Patches$Ha
+Nj <- Patches$pop09
+``` 
+
+Compile three alternative source patch parameters for each patch. Note that we set the area Aj to zero of the species was not recorded in the patch. This is done by multiplication with pj. 
+
+```{r}
+Source<- data.matrix(data.frame(pj=pj, Aj=pj*Aj, Nj=Nj))
+     mod<-rep(1:5, rep(3,5))
+```
+
+Prepare an empty table Si to hold the connectivity indices $S_{i}$, one for each combination of focal patch *i* (rows), distance model $d_{ij}$ and source patch parameter (15 columns: 5 distances x 3 parameters).
+
+```{r}
+Si <- data.frame(matrix(NA,nrow(patches),ncol=15))
+     dimnames(Si) <- list(row.names(patches),
+     paste(rep(names(dModels), rep(3,5)), 
+           rep(c("pj", "Aj", "Nj"),5), sep="_"))
+```
+
+
+```{r}
+
+```
+
+Define function `get.Si` with three arguments:
+
+- `alpha`: the optimized alpha value from above
+- `d`: the distance matrix
+- `Ap`: the source patch parameter to be used.
+
+```{r}
+get.Si <- function(alpha, d, Ap)
+{
+  expo<-exp(-alpha*d)
+  diag(expo)<-0
+  matr<-sweep(expo,2, Ap, "*")
+  S <- rowSums(sweep(matr, 2, Op/2, "*"), na.rm=TRUE)
+}
+```
+
+Apply function `get.Si` to calculate `Si` values. `sb` indicates which column of `Ap` to use as source patch parameter.
+
+```{r}
+sb <- rep(1:3,5)
+for (n in 1:ncol(Si))
+{
+  Si[,n] <- get.Si(alpha=table.alpha[mod[n]], d=dModels[[mod[n]]],
+                   Ap=Source[,sb[n]])
+}
+``` 
+
+Table with results Si. Column names are a combination of distance matrix and source patch parameter.
+
+```{r}
+head(Si)  
+``` 
+
+
+## 3.  Analysis of the Dianthus data with MLPE
+
+### a) Prepare the data (SIMPLIFY THIS)
+
+Import genetic data into gstudio:
+
+HW: CHECK PATH
+```{r}
+GenData.gstudio <- read_population("~/Desktop/R_GitHub_Projects/DGS_LG_Labs/vignettes/Week7_Spatial_Linear_Models/Dianthus_carthusianorum_genodata_Dec15_2013_NA.csv", locus.columns=c(6:27), type="column")
+```
+
+Convert to genind object:
+```{r}
+Dianthus.genind <- adegenet::df2genind(X=GenData.gstudio[,c(6:16)], 
+                    sep=":", ncode=NULL, ind.names=GenData.gstudio$SampleID., 
+                    loc.names=NULL, pop=GenData.gstudio$PatchID, 
+                    NA.char="", ploidy=2, type="codom", 
+                    strata=NULL, hierarchy=NULL)
+```
+
+Convert to genpop and calculate chord distance Dc:
+```{r}
+Dianthus.genpop <- genind2genpop(Dianthus.genind)
+Dc <- as.matrix(dist.genpop(Dianthus.genpop, method=2))
+```
+
+Define subset of rows of distance matrices for which genetic distances are available:
+```{r}
+a <- rep(NA, nrow(Dgen))
+for(i in 1:nrow(Dgen))
+{
+  #a[i] <- grep(rownames(Dgen)[i], rownames(dModels$Eu))
+  a[i] <- which(is.element(rownames(dModels$Eu), rownames(Dgen)[i]))
+}
+table(rownames(Dc) == rownames(dModels$Eu)[a])
+```
+
+### b) Create pairwise dataset
+
+Here we create a dataset where each row represents a unique pair of populations.
+
+```{r}
+tmp <- matrix(rownames(Dc), nrow(Dc), nrow(Dc))
+Pairs <- data.frame(pop1 = tmp[lower.tri(Dc)], 
+           pop2 = tmp[upper.tri(Dc)], 
+           Dc = Dc[lower.tri(Dc)],
+           Eu = dModels$Eu[a,a][lower.tri(dModels$Eu[a,a])],
+           Shecte = dModels$Shecte[a,a][lower.tri(dModels$Shecte[a,a])],
+           Sheint = dModels$Sheint[a,a][lower.tri(dModels$Sheint[a,a])],
+           Shenu = dModels$Shenu[a,a][lower.tri(dModels$Shenu[a,a])], 
+           Forest = dModels$Forest[a,a][lower.tri(dModels$Forest[a,a])])
+```
+
+```{r}
+with(Pairs, plot(Eu, Dc))
+```
+
+Create the Zl and ZZ matrices:
+
+```{r}
+Zl <- lapply(c("pop1","pop2"), function(nm) 
+  Matrix:::fac2sparse(Pairs[[nm]], "d", drop=FALSE))
+ZZ <- Reduce("+", Zl[-1], Zl[[1]])
+```
+
+Function MLPE (Week 12) (REML: Not needed?)
+
+```{r}
+MLPE <- function(variables, data) {
+  mod2 <- lme4::lFormula(variables, data = data, REML = TRUE)
+  dfun <- do.call(lme4::mkLmerDevfun, mod2)
+  opt <- lme4::optimizeLmer(dfun)
+  mod_2 <- lme4::mkMerMod(environment(dfun), opt, mod2$reTrms,fr = mod2$fr)
+  mod2$reTrms$Zt <- ZZ
+
+# Refit the model
+  dfun <- do.call(lme4::mkLmerDevfun, mod2)
+  opt <- lme4::optimizeLmer(dfun)
+  modelout <- lme4::mkMerMod(environment(dfun), opt, mod2$reTrms,fr = mod2$fr)
+  return(modelout)
+}
+```
+
+REML: Not needed?
+```{r}
+mod1 <- MLPE(Dc ~ Eu + (1|pop1), Pairs)
+mod2 <- MLPE(Dc ~ Shecte + (1|pop1), Pairs)
+mod3 <- MLPE(Dc ~ Sheint + (1|pop1), Pairs)
+mod4 <- MLPE(Dc ~ Shenu + (1|pop1), Pairs)
+#mod5 <- MLPE(Dc ~ Forest + (1|pop1), Pairs)
+```
+
+```{r}
+MLPEnoREML <- function(variables, data) {
+  mod2 <- lme4::lFormula(variables, data = data, REML = FALSE)
+  dfun <- do.call(lme4::mkLmerDevfun, mod2)
+  opt <- lme4::optimizeLmer(dfun)
+  mod_2 <- lme4::mkMerMod(environment(dfun), opt, mod2$reTrms,fr = mod2$fr)
+  mod2$reTrms$Zt <- ZZ
+
+# Refit the model
+  dfun <- do.call(lme4::mkLmerDevfun, mod2)
+  opt <- lme4::optimizeLmer(dfun)
+  modelout <- lme4::mkMerMod(environment(dfun), opt, mod2$reTrms,fr = mod2$fr)
+  return(modelout)
+}
+```
+
+```{r}
+mod1noREML <- MLPEnoREML(Dc ~ Eu + (1|pop1), Pairs)
+mod2noREML <- MLPEnoREML(Dc ~ Shecte + (1|pop1), Pairs)
+mod3noREML <- MLPEnoREML(Dc ~ Sheint + (1|pop1), Pairs)
+mod4noREML <- MLPEnoREML(Dc ~ Shenu + (1|pop1), Pairs)
+#mod5noREML <- MLPEnoREML(Dc ~ Forest + (1|pop1), Pairs)
+mod5noREML <- MLPEnoREML(Dc ~ I(Eu * (Shenu==100)) + 
+                              I(Shecte * (Shenu==1)) +(1|pop1), Pairs)
+mod6noREML <- MLPEnoREML(Dc ~ I(Eu * (Shenu==100)) + 
+                              I(Sheint * (Shenu==1)) +(1|pop1), Pairs)
+```
+
+```{r}
+Models <- list(Eu=mod1noREML, Shecte=mod2noREML, Sheint=mod3noREML, 
+               Shenu=mod4noREML, Eu_Shecte=mod5noREML, Eu_Sheint=mod6noREML)
+Dianthus.IC <- data.frame(AIC = sapply(Models, AIC),
+                     BIC = sapply(Models, BIC)) 
+Dianthus.IC
+```
+```{r}
+with(Pairs, plot(Shecte, Dc))
+with(Pairs, plot(I(Sheint * (Shenu==1)), Dc))
+with(Pairs, plot(I(Eu * (Shenu==100)), Dc))
+
+```
+
+
+### b) 
+
+## 4.  Accounting for spatial autocorrelation when fitting the MLPE
+
+
+
+
+```{r message=FALSE, warning=TRUE, include=FALSE}
+LandGenCourse::detachAllPackages()
+```
+
+
+
+
+
+
