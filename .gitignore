@@ -44,3 +44,4 @@ downloads
 # output folder
 /output
 .DS_Store
+/data
