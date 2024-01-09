@@ -16,17 +16,23 @@ editor_options:
   chunk_output_type: console
 ---
 
-There has been a lot of development recently in R regarding data types for geospatial data. We are currently in a transition period, where some packages still expect the "old" data types (based e.g. on packages `raster` and `sp`), others expect the "new" data types (based e.g. on packages `terra` and `sf`), and many accept both.
-
-This vignette uses the older packages `raster` and `sp`, as these are still widely used and compatible with other functions used in landscape genetics. The bonus vignette uses the new packages `sf`, `terra`, and `tmap`, yet it can only scratch the surface. 
-
-For a thorough introduction to geocomputation with R, see this excellent Gitbook: https://geocompr.robinlovelace.net/index.html. Note: 2nd edition expected for spring 2022.
 
 ## 1. Overview of Worked Example {-}
 
-This code builds on data and code from the `GeNetIt` package by Jeff Evans and Melanie Murphy. Landscape metrics will be calculated with the `landscapemetrics` package described in: Hesselbarth et al. (2019), Ecography 42: 1648-1657.
+### a) Background on spatial packages in R
 
-### a) Goals {-} 
+There has been a lot of development recently in R regarding object types for geospatial data. We are currently in a transition period, where some packages still expect the "old" object types (based e.g. on packages `raster` and `sp`), others expect the "new" object types (based e.g. on packages `terra` and `sf`), and some accept both. This vignette uses the newer packages `terra` and `sf`. The bonus vignette includes code for converting between `sf` and `sp`, and between `terra` and `raster`. 
+
+Further resources: 
+
+- **Intro GIS with R**: to learn about GIS functionality using R, https://bookdown.org/michael_bcalles/gis-crash-course-in-r/data.html#vector-data
+
+- **R Tutorial**: For an introductory tutorial on spatial data analysis with R, which explains object types in more detail than this worked example, see: https://rpubs.com/jguelat/fdsfd 
+
+- **Advanced**: For a thorough resource on spatial data analysis with R, see this excellent Gitbook: https://geocompr.robinlovelace.net/index.html.
+
+
+### b) Goals {-} 
 
 This worked example shows:
 
@@ -37,7 +43,9 @@ This worked example shows:
 
 Try modifying the code to import your own data!
 
-### b) Data set {-}
+### c) Data set {-}
+
+This code builds on data and code from the `GeNetIt` package by Jeff Evans and Melanie Murphy. Landscape metrics will be calculated with the `landscapemetrics` package described in: Hesselbarth et al. (2019), Ecography 42: 1648-1657.
 
 This code uses landscape data and spatial coordinates from 30 locations where Colombia spotted frogs (*Rana luteiventris*) were sampled for the full data set analyzed by Funk et al. (2005) and Murphy et al. (2010). Please see the separate introduction to the data set.
 
@@ -52,7 +60,7 @@ We will extract values at sampling point locations and within a local neighborho
 - hli:   Heat Load Index
 - nlcd:  USGS Landcover (categorical map)
 
-### c) Required R packages {-}
+### d) Required R packages {-}
 
 Install some packages needed for this worked example.
 
