@@ -457,7 +457,7 @@ Variables:
 
 a) **Load packages**: Make sure the following packages are loaded: `gstudio`, `here`,`tibble` and `adegenet`.
 b) **View data file**: Adapt the code from section 2.c to import the raw data set. The file has a header row. View it. How are the genetic data coded?
-c) **Import data into gstudio**: Adapt the code from section 5.b to import the genetic data with 'gstudio'. The loci are in columns 6 - 19. What setting for `type` is appropriate for this data set? Check the help file for `read_population`. 
+c) **Import data into gstudio**: Adapt the code from section 5.b to import the genetic data with 'gstudio'. The loci are in columns 6 - 19. What setting for `type` is appropriate for this data set? Check the help file for `read_population` and, if needed, the full documentation of the `gstudio` package at  http://dyerlab.github.io/gstudio/
 d) **Check imported data**: Use `str` or `as_tibble` to check the imported data. Does each variable have the correct data type? Note: there should be 7 variables of type `locus`.
 e) **Check variable types**: Create a bulleted list, like the one above, with the variables. For each variable, list their R data type (e.g., numeric, integer, character, logical, factor, locus). Check the cheatsheet "R markdown language" as needed.
 f) **Convert to genind object**: Modify the code from section 5.e to convert the data from `gstudio` to a `genind` object. Ignore the warning about duplicate labels. Print a summary of the `genind` object. 
