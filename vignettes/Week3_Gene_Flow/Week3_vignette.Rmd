@@ -41,7 +41,6 @@ All required packages should have been installed already when you installed 'Lan
 #require(adegenet)
 require(LandGenCourse)
 #require(pegas)       
-#require(sp)
 #require(PopGenReport)
 require(dplyr)
 require(poppr) 
