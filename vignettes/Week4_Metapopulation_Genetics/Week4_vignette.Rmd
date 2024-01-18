@@ -33,7 +33,7 @@ Lamy et al. (2012) sampled the freshwater snail *Drepanotrema depressissimum* in
 
 A key characteristic of this system is the presence of a dry and a rainy season. In the dry season, many ponds can dry out, possibly causing extinction of the local snail populations. During the rainy season, ponds refill and can even overflow, thereby becoming connected through the hydrological network. During this rainy season, dispersal between ponds may occur. 
 
-- **dd.ecogen**: The dataset 'dd.ecogen' with genetic data for 1270 snails from 42 populations is included in package 'LandGenCourse'. To load it, type: data(dd.ecogen). 
+- **dd.genind**: The dataset 'dd.genind' with genetic data for 1270 snails from 42 populations is included in package 'LandGenCourse'. To load it, type: data(dd.genind). 
 
 - **dd.site**: Population-level data from Tables 2 - 5 of Lamy et al. (2012) are available in dataset 'dd.site' (with 25 variables) in package 'LandGenCourse'. To load it, type: data(dd.site). 
 
@@ -43,16 +43,9 @@ Lamy, T., Pointier, J. P., Jarne, P. and David, P. (2012), Testing metapopulatio
 
 ### c) Required R libraries {-}
 
-Install some packages needed for this worked example.
-
-```{r}
-if(!requireNamespace("EcoGenetics", quietly = TRUE)) 
-  remotes::install_github("leandroroser/EcoGenetics-devel")
-```
 
 ```{r message=FALSE, warning=TRUE}
 library(LandGenCourse)
-library(EcoGenetics)
 library(methods)
 library(ggplot2)
 #require(tibble)
@@ -65,21 +58,30 @@ library(ggplot2)
 #require(car)  
 ```
 
+
 ### d) Import data {-}
 
-Let's import the genetic data (spatial and temporal data sets combined, 42 combinations of site and year). Use '?dd.ecogen' to check helpfile with data set desription.
+Let's import the genetic data (spatial and temporal data sets combined, 42 combinations of site and year). 
 
-The 'ecogen' object 'dd.ecogen' contains individual-level data in the following slots:
+The 'genind' object 'dd.genind' contains individual-level data in the following slots:
 
-- **XY**: Spatial coordinates (lat-long format)
-- **G**: Microsatellite loci (columns = loci, rows = individuals)
-- **A**: Table of allele frequencies (columns = alleles, rows = individuals)
-- **S**: Structure variables (SiteID, SITE, YEAR, Cluster)
+- **tab**: a matrix of allele frequencies (one column per allele)
+- **loc.fac**: a factor that identifies the locus for each allele
+- **loc.n.all**: a vector with the number of alleles per locus
+- **all.names**: a list with allele names
+- **ploidy**: a vector with the ploidy of each individual (row)
+- **type**: marker type (here: "codom" as microsatellites are codominant)
+- **other**: a list with additional variables, here: spatial coordinates
+  - **xy**: a data frame with spatial coordinates (lat-long format)
+- **call**: call that created the object. Here it is empty.
+- **pop*: a factor with the population of each individual. Here it is empty as the information is in @strata.
+- **strata**: a data frame with structure variables, here: SiteID, SITE, YEAR, Cluster
+- **hierarchy**: a hierarchy. Here it is empty as the information is in @strata.
+
 
 ```{r}
-data(dd.ecogen, package = "LandGenCourse")
-dd.ecogen
-?dd.ecogen   
+data(dd.genind, package = "LandGenCourse")
+dd.genind
 ```
 
 We also import site-level data from Tables 2 - 5 in Lamy et al. (2012). Use '?dd.site' to check helpfile with data set desription of the variables.
@@ -113,13 +115,12 @@ In the following, we'll perform three types of analyses:
 
 How similar are populations from nearby habitat patches compared to populations across the island? To answer this question, we perform a hiearchical AMOVA (analysis of molecular variance) with individuals from 12 populations that form 4 clusters with 3 populations each. 
 
-### a) Creating a 'genind' object with the hierarchical data set {-}
+### a) Subsetting the 'genind' object {-}
 
-First, we need to extract the samples that belong to the hierarchical data set. There are four clusters: "North", "East", "Center" and "South". We are looking for the observations where the variable "Cluster" has one of these four values, all other observations will have a missing value for "Cluster". We can use '!is.na' to extract all rows with non-missing values. Then we convert to a 'genind' object.
+First, we need to extract the samples that belong to the hierarchical data set. There are four clusters: "North", "East", "Center" and "South". We are looking for the observations where the variable "Cluster" has one of these four values, all other observations will have a missing value for "Cluster". We can use '!is.na' to identify the rows with non-missing values. Because a genind object is at its core a data frame `@tab` with rows (individuals) and columns(alleles), we can subset rows or columns. Here we subset rows.
 
 ```{r}
-dd.ecogen.Cluster <- dd.ecogen[!is.na(dd.ecogen[["S"]]$Cluster),]
-dd.genind.Cluster <- EcoGenetics::ecogen2genind(dd.ecogen.Cluster)
+dd.genind.Cluster <- dd.genind[!is.na(dd.genind@strata$Cluster),]
 ```
 
 ### b) Hierarchical AMOVA {-} 
